@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { products, type MockProduct } from "./mock";
+import { dict, type Lang, type SiteKey } from "./i18n";
+import { products, promotion, effectiveCents, type MockProduct } from "./mock";
 
 // ---------------------------------------------------------------------------
 // Pixel-accurate replica of the real web/ storefront, rendered inside the
@@ -7,6 +8,53 @@ import { products, type MockProduct } from "./mock";
 // local (mock user/cart/orders) — zero network requests, as Pages has no
 // backend. Clicking the storefront link swaps the whole screen to this view.
 // ---------------------------------------------------------------------------
+
+// Store-localized strings (labels unique to the replica, not shared with facade sections)
+const S = {
+  zh: {
+    products: "商品", cart: "购物车", orders: "我的订单", login: "登录", register: "注册",
+    logout: "退出", add_to_cart: "加入购物车", stock: "库存", stock_n: "库存 {n} 件",
+    hero_title: "精选好物，即刻拥有", hero_sub: "注册即购 · 邮箱验证 · 模拟支付全流程演示",
+    promo_banner: "🎉 开业酬宾：全场 9 折 · 与会员/商品折扣叠加",
+    detail_qty: "数量", not_found: "商品不存在", login_title: "登录", register_title: "注册",
+    email: "邮箱", password: "密码", username: "用户名", invite: "邀请码（可选）",
+    invite_hint: "如果管理员开启了邀请注册", verify_title: "邮箱验证", verify_code: "验证码",
+    verify_hint: "演示环境：任意 4 位以上数字即可通过验证", verify_btn: "完成注册",
+    no_account: "还没有账号？", go_register: "去注册", have_account: "已有账号？", go_login: "去登录",
+    cart_title: "购物车", cart_empty: "购物车是空的，去逛逛吧", please_login: "请先登录",
+    col_product: "商品", col_price: "单价", col_qty: "数量", col_subtotal: "小计", remove: "删除",
+    items_total: "共 {n} 件，合计", checkout: "结算下单",
+    member_discount: "会员专属折扣 {p}%：-{amount}",
+    order_created: "订单 {no} 已创建，请尽快支付", pay_now: "去支付", cancel: "取消",
+    orders_title: "我的订单", no_orders: "还没有订单",
+    col_order_no: "订单号", col_items: "商品", col_amount: "金额", col_status: "状态", col_time: "创建时间", col_actions: "操作",
+    profile_title: "个人中心", role: "角色", created_at: "注册时间", verified: "已验证",
+    role_user: "用户", role_admin: "管理员", role_super: "超级管理员",
+    discount_label: "会员折扣",
+  },
+  en: {
+    products: "Products", cart: "Cart", orders: "My Orders", login: "Sign in", register: "Sign up",
+    logout: "Sign out", add_to_cart: "Add to cart", stock: "Stock", stock_n: "Stock {n}",
+    hero_title: "Great finds, instantly yours", hero_sub: "Register & buy · Email verification · Full mock-payment demo",
+    promo_banner: "🎉 Grand opening: 10% OFF everything · Stacks with member & product discounts",
+    detail_qty: "Quantity", not_found: "Product not found", login_title: "Sign in", register_title: "Sign up",
+    email: "Email", password: "Password", username: "Username", invite: "Invite code (optional)",
+    invite_hint: "If the admin enabled invite-only signup", verify_title: "Email verification", verify_code: "Verification code",
+    verify_hint: "Demo environment: any 4+ digit code passes", verify_btn: "Finish signup",
+    no_account: "No account yet?", go_register: "Sign up", have_account: "Already registered?", go_login: "Sign in",
+    cart_title: "Cart", cart_empty: "Your cart is empty — go browse", please_login: "Please sign in first",
+    col_product: "Product", col_price: "Price", col_qty: "Qty", col_subtotal: "Subtotal", remove: "Remove",
+    items_total: "{n} item(s), total", checkout: "Checkout", member_discount: "Member discount {p}%: -{amount}",
+    order_created: "Order {no} created — please pay soon", pay_now: "Pay now", cancel: "Cancel",
+    orders_title: "My Orders", no_orders: "No orders yet",
+    col_order_no: "Order No.", col_items: "Items", col_amount: "Amount", col_status: "Status", col_time: "Created", col_actions: "Actions",
+    profile_title: "Profile", role: "Role", created_at: "Joined", verified: "Verified",
+    role_user: "User", role_admin: "Admin", role_super: "Super admin",
+    discount_label: "Member discount",
+  },
+} as const;
+type StoreKey = keyof typeof S.zh;
+const ts = (lang: Lang) => (k: StoreKey) => S[lang][k] as string;
 
 type Route =
   | { name: "home" }
@@ -27,6 +75,8 @@ interface MockOrder {
   id: number;
   order_no: string;
   lines: { name: string; qty: number }[];
+  subtotal_cents: number;
+  discount_cents: number;
   total_cents: number;
   status: "pending_payment" | "paid" | "cancelled";
   created_at: string;
@@ -37,6 +87,7 @@ interface MockUser {
   username: string;
   email: string;
   role: string;
+  discount_percent: number;
   created_at: string;
 }
 
@@ -47,9 +98,19 @@ const STATUS_TEXT: Record<string, string> = {
   cancelled: "已取消",
   completed: "已完成",
 };
+const STATUS_TEXT_EN: Record<string, string> = {
+  pending_payment: "Pending payment",
+  paid: "Paid",
+  cancelled: "Cancelled",
+  completed: "Completed",
+};
 const fmtTime = (iso: string | null) => (!iso ? "—" : iso.replace("T", " ").slice(0, 16));
 
-export default function StoreReplica({ onExit }: { onExit: () => void }) {
+export default function StoreReplica({ onExit, lang }: { onExit: () => void; lang: Lang }) {
+  const t = ts(lang);
+  // Facade footer uses these too
+  const _ft = (k: SiteKey) => dict[lang][k];
+
   const [route, setRoute] = useState<Route>({ name: "home" });
   const [user, setUser] = useState<MockUser | null>(null);
   const [pendingEmail, setPendingEmail] = useState("");
@@ -79,7 +140,8 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
     if (!email || !password) return;
     setBusy(true);
     setTimeout(() => {
-      setUser({ username: "宝可梦训练家", email, role: "user", created_at: new Date().toISOString() });
+      // Demo member carries a 5% personal discount, mirroring the live shop data
+      setUser({ username: "宝可梦训练家", email, role: "user", discount_percent: 5, created_at: new Date().toISOString() });
       setBusy(false);
       go({ name: "home" });
     }, 400);
@@ -94,10 +156,10 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
   const verify = (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length < 4) {
-      setErr("请输入验证码");
+      setErr(lang === "zh" ? "请输入验证码" : "Please enter the code");
       return;
     }
-    setUser({ username: username || "宝可梦训练家", email: pendingEmail, role: "user", created_at: new Date().toISOString() });
+    setUser({ username: username || "宝可梦训练家", email: pendingEmail, role: "user", discount_percent: 5, created_at: new Date().toISOString() });
     go({ name: "home" });
   };
 
@@ -130,12 +192,19 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
     setCart((c) => {
       if (c.length) {
         const no = "20260925-" + Math.random().toString(16).slice(2, 10).toUpperCase();
-        const total = c.reduce((s, l) => s + l.product.price_cents * l.qty, 0);
+        // Same math as the live pricing engine: product% + promotion% then member%
+        const subtotal = c.reduce((s, l) => s + effectiveCents(l.product) * l.qty, 0);
+        const discount = user?.discount_percent
+          ? Math.round(subtotal * user.discount_percent / 100)
+          : 0;
+        const total = subtotal - discount;
         setOrders((os) => [
           {
             id: Date.now(),
             order_no: no,
             lines: c.map((l) => ({ name: l.product.name, qty: l.qty })),
+            subtotal_cents: subtotal,
+            discount_cents: discount,
             total_cents: total,
             status: "pending_payment",
             created_at: new Date().toISOString(),
@@ -143,7 +212,7 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
           },
           ...os,
         ]);
-        setBanner(`订单 ${no} 已创建，请尽快支付（状态流转见下表）`);
+        setBanner(t("order_created").replace("{no}", no));
       }
       return [];
     });
@@ -156,7 +225,7 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
           : o
       )
     );
-    setBanner("模拟支付成功（Mock 收银台 → HMAC 签名 webhook → 幂等落账）");
+    setBanner(lang === "zh" ? "模拟支付成功（Mock 收银台 → HMAC 签名 webhook → 幂等落账）" : "Mock payment OK (cashier → HMAC-signed webhook → idempotent ledger)");
   };
 
   const cancel = (orderId: number) => {
@@ -170,12 +239,29 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
     go({ name: "home" });
   };
 
-  const totalCents = cart.reduce((s, l) => s + l.product.price_cents * l.qty, 0);
+  const subtotalCents = cart.reduce((s, l) => s + effectiveCents(l.product) * l.qty, 0);
+  const memberDiscountCents = user?.discount_percent ? Math.round(subtotalCents * user.discount_percent / 100) : 0;
+
+  const priceCell = (p: MockProduct) => {
+    const eff = effectiveCents(p);
+    const hasDiscount = p.discount_percent > 0 || (promotion.active && promotion.kind === "percent_off");
+    return (
+      <span className="price-cell">
+        {hasDiscount && <span className="price-was">¥{yuan(p.price_cents)}</span>}
+        <span className="price">¥{yuan(eff)}</span>
+        {hasDiscount && (
+          <span className="discount-tag">
+            -{((1 - eff / p.price_cents) * 100).toFixed(0)}%
+          </span>
+        )}
+      </span>
+    );
+  };
 
   return (
     <div className="replica-scope">
-      <button className="replica-exit" onClick={onExit} title="返回演示门面">
-        ← 返回门面
+      <button className="replica-exit" onClick={onExit} title="Facade">
+        {lang === "zh" ? "← 返回门面" : "← Back to facade"}
       </button>
 
       <div className="rs-app-shell">
@@ -185,20 +271,20 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
               🃏 PTCG Shop
             </a>
             <nav className="nav-links">
-              <a href="#rs-home" onClick={(e) => { e.preventDefault(); go({ name: "home" }); }}>商品</a>
+              <a href="#rs-home" onClick={(e) => { e.preventDefault(); go({ name: "home" }); }}>{t("products")}</a>
               {user ? (
                 <>
-                  <a href="#rs-cart" onClick={(e) => { e.preventDefault(); go({ name: "cart" }); }}>购物车</a>
-                  <a href="#rs-orders" onClick={(e) => { e.preventDefault(); go({ name: "orders" }); }}>我的订单</a>
+                  <a href="#rs-cart" onClick={(e) => { e.preventDefault(); go({ name: "cart" }); }}>{t("cart")}</a>
+                  <a href="#rs-orders" onClick={(e) => { e.preventDefault(); go({ name: "orders" }); }}>{t("orders")}</a>
                   <a href="#rs-profile" className="nav-user" onClick={(e) => { e.preventDefault(); go({ name: "profile" }); }}>
                     {user.username}
                   </a>
-                  <button className="btn-link" onClick={logout}>退出</button>
+                  <button className="btn-link" onClick={logout}>{t("logout")}</button>
                 </>
               ) : (
                 <>
-                  <a href="#rs-login" onClick={(e) => { e.preventDefault(); go({ name: "login" }); }}>登录</a>
-                  <a href="#rs-register" onClick={(e) => { e.preventDefault(); go({ name: "register" }); }}>注册</a>
+                  <a href="#rs-login" onClick={(e) => { e.preventDefault(); go({ name: "login" }); }}>{t("login")}</a>
+                  <a href="#rs-register" onClick={(e) => { e.preventDefault(); go({ name: "register" }); }}>{t("register")}</a>
                 </>
               )}
             </nav>
@@ -207,12 +293,15 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
 
         <main className="container">
           {banner && <div className="banner">{banner}</div>}
+          {promotion.active && (
+            <div className="promo-banner">{t("promo_banner")}</div>
+          )}
 
           {route.name === "home" && (
             <div>
               <div className="hero">
-                <h1>精选好物，即刻拥有</h1>
-                <p>注册即购 · 邮箱验证 · 模拟支付全流程演示</p>
+                <h1>{t("hero_title")}</h1>
+                <p>{t("hero_sub")}</p>
               </div>
               <div className="product-grid">
                 {products.map((p) => (
@@ -231,16 +320,22 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
                         className="product-name"
                         onClick={(e) => { e.preventDefault(); go({ name: "detail", slug: p.slug }); }}
                       >
-                        {p.name}
+                        {lang === "en" && p.name_en ? p.name_en : p.name}
                       </a>
-                      <div className="product-desc">{p.desc}</div>
+                      <div className="product-desc">{lang === "en" && p.desc_en ? p.desc_en : p.desc}</div>
                       <div className="product-foot">
-                        <span className="price">¥{yuan(p.price_cents)}</span>
-                        <span className="stock">库存 {p.stock}</span>
+                        {priceCell(p)}
+                        <span className="stock">{t("stock")} {p.stock}</span>
                       </div>
-                      <button className="btn btn-primary btn-block" onClick={() => addToCart(p, 1)}>
-                        加入购物车
-                      </button>
+                      {p.stock > 0 ? (
+                        <button className="btn btn-primary btn-block" onClick={() => addToCart(p, 1)}>
+                          {t("add_to_cart")}
+                        </button>
+                      ) : (
+                        <button className="btn btn-block" disabled>
+                          {lang === "zh" ? "暂时缺货" : "Sold out"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -250,19 +345,27 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
 
           {route.name === "detail" && (() => {
             const p = products.find((x) => x.slug === route.slug);
-            if (!p) return <div className="empty">商品不存在</div>;
+            if (!p) return <div className="empty">{t("not_found")}</div>;
+            const eff = effectiveCents(p);
+            const hasDiscount = eff < p.price_cents;
             return (
               <div className="detail">
                 <div className="detail-thumb">
                   <span>{p.name.slice(0, 1)}</span>
                 </div>
                 <div className="detail-info">
-                  <h1>{p.name}</h1>
-                  <p className="product-desc">{p.desc}</p>
-                  <div className="price-lg">¥{yuan(p.price_cents)}</div>
-                  <div className="stock">库存 {p.stock} 件</div>
+                  <h1>{lang === "en" && p.name_en ? p.name_en : p.name}</h1>
+                  <p className="product-desc">{lang === "en" && p.desc_en ? p.desc_en : p.desc}</p>
+                  <div className="price-cell price-lg-row">
+                    {hasDiscount && <span className="price-was">¥{yuan(p.price_cents)}</span>}
+                    <span className="price-lg">¥{yuan(eff)}</span>
+                    {hasDiscount && (
+                      <span className="discount-tag">-{((1 - eff / p.price_cents) * 100).toFixed(0)}%</span>
+                    )}
+                  </div>
+                  <div className="stock">{t("stock_n").replace("{n}", String(p.stock))}</div>
                   <div className="qty-row">
-                    <label>数量</label>
+                    <label>{t("detail_qty")}</label>
                     <input
                       type="number"
                       min={1}
@@ -272,7 +375,7 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
                     />
                   </div>
                   <button className="btn btn-primary" onClick={() => { addToCart(p, detailQty); setDetailQty(1); }}>
-                    加入购物车
+                    {t("add_to_cart")}
                   </button>
                 </div>
               </div>
@@ -281,67 +384,67 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
 
           {route.name === "login" && (
             <div className="auth-box">
-              <h1>登录</h1>
+              <h1>{t("login_title")}</h1>
               <form onSubmit={login}>
                 <label>
-                  邮箱
+                  {t("email")}
                   <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
                 </label>
                 <label>
-                  密码
-                  <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="至少 8 位" />
+                  {t("password")}
+                  <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={lang === "zh" ? "至少 8 位" : "At least 8 chars"} />
                 </label>
                 {err && <div className="form-error">{err}</div>}
                 <button className="btn btn-primary btn-block" disabled={busy}>
-                  {busy ? "登录中…" : "登录"}
+                  {busy ? (lang === "zh" ? "登录中…" : "Signing in…") : t("login")}
                 </button>
               </form>
               <p className="auth-switch">
-                还没有账号？<a href="#rs-register" onClick={(e) => { e.preventDefault(); go({ name: "register" }); }}>去注册</a>
+                {t("no_account")}<a href="#rs-register" onClick={(e) => { e.preventDefault(); go({ name: "register" }); }}>{t("go_register")}</a>
               </p>
             </div>
           )}
 
           {route.name === "register" && (
             <div className="auth-box">
-              <h1>注册</h1>
+              <h1>{t("register_title")}</h1>
               <form onSubmit={register}>
                 <label>
-                  用户名
-                  <input required minLength={2} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="2-64 字符" />
+                  {t("username")}
+                  <input required minLength={2} value={username} onChange={(e) => setUsername(e.target.value)} placeholder={lang === "zh" ? "2-64 字符" : "2-64 chars"} />
                 </label>
                 <label>
-                  邮箱
+                  {t("email")}
                   <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
                 </label>
                 <label>
-                  密码
-                  <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="至少 8 位" />
+                  {t("password")}
+                  <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={lang === "zh" ? "至少 8 位" : "At least 8 chars"} />
                 </label>
                 <label>
-                  邀请码（可选）
-                  <input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} placeholder="如果管理员开启了邀请注册" />
+                  {t("invite")}
+                  <input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} placeholder={t("invite_hint")} />
                 </label>
                 {err && <div className="form-error">{err}</div>}
-                <button className="btn btn-primary btn-block">注册</button>
+                <button className="btn btn-primary btn-block">{t("register")}</button>
               </form>
               <p className="auth-switch">
-                已有账号？<a href="#rs-login" onClick={(e) => { e.preventDefault(); go({ name: "login" }); }}>去登录</a>
+                {t("have_account")}<a href="#rs-login" onClick={(e) => { e.preventDefault(); go({ name: "login" }); }}>{t("go_login")}</a>
               </p>
             </div>
           )}
 
           {route.name === "verify" && (
             <div className="auth-box">
-              <h1>邮箱验证</h1>
-              <p className="auth-hint">演示环境：任意 4 位以上数字即可通过验证</p>
+              <h1>{t("verify_title")}</h1>
+              <p className="auth-hint">{t("verify_hint")}</p>
             <form onSubmit={verify}>
                 <label>
-                  邮箱
+                  {t("email")}
                   <input type="email" required value={pendingEmail} readOnly />
                 </label>
                 <label>
-                  验证码
+                  {t("verify_code")}
                   <input
                     required
                     inputMode="numeric"
@@ -349,37 +452,37 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
                     maxLength={8}
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="演示页面，任意数字"
+                    placeholder={lang === "zh" ? "演示页面，任意数字" : "Demo: any digits"}
                   />
                 </label>
                 {err && <div className="form-error">{err}</div>}
-                <button className="btn btn-primary btn-block">完成注册</button>
+                <button className="btn btn-primary btn-block">{t("verify_btn")}</button>
               </form>
             </div>
           )}
           {route.name === "cart" && (
             (user ? (
               <div>
-                <h1 className="page-title">购物车</h1>
+                <h1 className="page-title">{t("cart_title")}</h1>
                 {cart.length === 0 ? (
-                  <div className="empty">购物车是空的，去逛逛吧</div>
+                  <div className="empty">{t("cart_empty")}</div>
                 ) : (
                   <>
                     <table className="table">
                       <thead>
                         <tr>
-                          <th>商品</th>
-                          <th>单价</th>
-                          <th>数量</th>
-                          <th>小计</th>
+                          <th>{t("col_product")}</th>
+                          <th>{t("col_price")}</th>
+                          <th>{t("col_qty")}</th>
+                          <th>{t("col_subtotal")}</th>
                           <th></th>
                         </tr>
                       </thead>
                       <tbody>
                         {cart.map((it) => (
                           <tr key={it.product.id}>
-                            <td>{it.product.name}</td>
-                            <td>¥{yuan(it.product.price_cents)}</td>
+                            <td>{lang === "en" && it.product.name_en ? it.product.name_en : it.product.name}</td>
+                            <td>{priceCell(it.product)}</td>
                             <td>
                               <input
                                 className="qty-input"
@@ -390,45 +493,58 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
                                 onChange={(e) => changeQty(it.product.id, Math.max(1, Math.min(Number(e.target.value) || 1, 99)))}
                               />
                             </td>
-                            <td>¥{yuan(it.product.price_cents * it.qty)}</td>
+                            <td>¥{yuan(effectiveCents(it.product) * it.qty)}</td>
                             <td>
-                              <button className="btn-link danger" onClick={() => removeLine(it.product.id)}>删除</button>
+                              <button className="btn-link danger" onClick={() => removeLine(it.product.id)}>{t("remove")}</button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                     <div className="cart-foot">
-                      <span>
-                        共 <b>{cart.reduce((s, i) => s + i.qty, 0)}</b> 件，合计{" "}
-                        <b className="price">¥{yuan(totalCents)}</b>
-                      </span>
-                      <button className="btn btn-primary" onClick={checkout}>结算下单</button>
+                      <div className="cart-summary">
+                        <span>
+                          {t("items_total")
+                            .replace("{n}", String(cart.reduce((s, i) => s + i.qty, 0)))
+                            .replace("，", lang === "zh" ? "，" : " ")}
+                        </span>
+                        {memberDiscountCents > 0 && (
+                          <span className="cart-discount-note">
+                            {t("member_discount")
+                              .replace("{p}", String(user?.discount_percent ?? 0))
+                              .replace("{amount}", `¥${yuan(memberDiscountCents)}`)}
+                          </span>
+                        )}
+                        <span>
+                          <b className="price">¥{yuan(subtotalCents - memberDiscountCents)}</b>
+                        </span>
+                      </div>
+                      <button className="btn btn-primary" onClick={checkout}>{t("checkout")}</button>
                     </div>
                   </>
                 )}
               </div>
             ) : (
-              <div className="empty">请先登录</div>
+              <div className="empty">{t("please_login")}</div>
             ))
           )}
 
           {route.name === "orders" && (
             (user ? (
               <div>
-                <h1 className="page-title">我的订单</h1>
+                <h1 className="page-title">{t("orders_title")}</h1>
                 {orders.length === 0 ? (
-                  <div className="empty">还没有订单</div>
+                  <div className="empty">{t("no_orders")}</div>
                 ) : (
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>订单号</th>
-                        <th>商品</th>
-                        <th>金额</th>
-                        <th>状态</th>
-                        <th>创建时间</th>
-                        <th>操作</th>
+                        <th>{t("col_order_no")}</th>
+                        <th>{t("col_items")}</th>
+                        <th>{t("col_amount")}</th>
+                        <th>{t("col_status")}</th>
+                        <th>{t("col_time")}</th>
+                        <th>{t("col_actions")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -442,17 +558,26 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
                               </div>
                             ))}
                           </td>
-                          <td>¥{yuan(o.total_cents)}</td>
                           <td>
-                            <span className={"badge " + o.status}>{STATUS_TEXT[o.status]}</span>
+                            ¥{yuan(o.total_cents)}
+                            {o.discount_cents > 0 && (
+                              <div className="order-discount">
+                                {lang === "zh" ? `会员折扣 -¥${yuan(o.discount_cents)}` : `Member discount -¥${yuan(o.discount_cents)}`}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <span className={"badge " + o.status}>
+                              {(lang === "en" ? STATUS_TEXT_EN : STATUS_TEXT)[o.status]}
+                            </span>
                             {o.paid_at && <div className="paid-at">{fmtTime(o.paid_at)}</div>}
                           </td>
                           <td>{fmtTime(o.created_at)}</td>
                           <td>
                             {o.status === "pending_payment" && (
                               <>
-                                <button className="btn btn-sm btn-primary" onClick={() => pay(o.id)}>去支付</button>{" "}
-                                <button className="btn btn-sm" onClick={() => cancel(o.id)}>取消</button>
+                                <button className="btn btn-sm btn-primary" onClick={() => pay(o.id)}>{t("pay_now")}</button>{" "}
+                                <button className="btn btn-sm" onClick={() => cancel(o.id)}>{t("cancel")}</button>
                               </>
                             )}
                           </td>
@@ -463,31 +588,41 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
                 )}
               </div>
             ) : (
-              <div className="empty">请先登录</div>
+              <div className="empty">{t("please_login")}</div>
             ))
           )}
 
           {route.name === "profile" && user && (
             <div className="auth-box wide">
-              <h1>个人中心</h1>
+              <h1>{t("profile_title")}</h1>
               <table className="table">
                 <tbody>
                   <tr>
-                    <th>用户名</th>
+                    <th>{t("username")}</th>
                     <td>{user.username}</td>
                   </tr>
                   <tr>
-                    <th>邮箱</th>
+                    <th>{t("email")}</th>
                     <td>
-                      {user.email} <span className="badge paid">已验证</span>
+                      {user.email} <span className="badge paid">{t("verified")}</span>
                     </td>
                   </tr>
                   <tr>
-                    <th>角色</th>
-                    <td>{user.role === "admin" ? "管理员" : "用户"}</td>
+                    <th>{t("role")}</th>
+                    <td>
+                      {user.role === "admin" ? t("role_admin") : user.role === "super_admin" ? t("role_super") : t("role_user")}
+                    </td>
                   </tr>
+                  {user.discount_percent > 0 && (
+                    <tr>
+                      <th>{t("discount_label")}</th>
+                      <td>
+                        {user.discount_percent}% ({"zh" === lang ? "下单时自动抵扣" : "auto-applied at checkout"})
+                      </td>
+                    </tr>
+                  )}
                   <tr>
-                    <th>注册时间</th>
+                    <th>{t("created_at")}</th>
                     <td>{fmtTime(user.created_at)}</td>
                   </tr>
                 </tbody>
@@ -497,7 +632,9 @@ export default function StoreReplica({ onExit }: { onExit: () => void }) {
         </main>
 
         <footer className="footer">
-          PTCG Shop · FastAPI + React · 演示项目（GitHub Pages 静态复刻，无后端请求）
+          {lang === "zh"
+            ? "PTCG Shop · FastAPI + React · 演示项目（GitHub Pages 静态复刻，无后端请求）"
+            : "PTCG Shop · FastAPI + React · Demo (static GitHub Pages replica, no backend calls)"}
         </footer>
       </div>
     </div>

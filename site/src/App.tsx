@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { dict, SiteI18nCtx, useI18n, type Lang, type SiteKey } from "./i18n";
 import { features, milestones, quickStart } from "./mock";
 import StoreDemo from "./StoreDemo";
 import StoreReplica from "./StoreReplica";
+import AdminReplica from "./AdminReplica";
 import ArchDiagram from "./ArchDiagram";
 
 function Section({ id, kicker, title, children }: { id: string; kicker: string; title: string; children: React.ReactNode }) {
@@ -14,11 +16,35 @@ function Section({ id, kicker, title, children }: { id: string; kicker: string; 
   );
 }
 
-export default function App() {
-  const [showReplica, setShowReplica] = useState(false);
+function I18nProvider({ children }: { children: React.ReactNode }) {
+  const [lang, setLang] = useState<Lang>("zh");
+  const t = (k: SiteKey) => dict[lang][k];
+  return (
+    <SiteI18nCtx.Provider value={{ lang, t, setLang }}>
+      {children}
+    </SiteI18nCtx.Provider>
+  );
+}
 
-  if (showReplica) {
-    return <StoreReplica onExit={() => setShowReplica(false)} />;
+export default function App() {
+  const [view, setView] = useState<"facade" | "store" | "admin">("facade");
+
+  return (
+    <I18nProvider>
+      <Shell view={view} setView={setView} />
+    </I18nProvider>
+  );
+}
+
+function Shell({ view, setView }: { view: "facade" | "store" | "admin"; setView: (v: "facade" | "store" | "admin") => void }) {
+  const { lang, t, setLang } = useI18n();
+  const en = lang === "en";
+
+  if (view === "store") {
+    return <StoreReplica onExit={() => setView("facade")} lang={lang} />;
+  }
+  if (view === "admin") {
+    return <AdminReplica onExit={() => setView("facade")} lang={lang} />;
   }
 
   return (
@@ -28,24 +54,36 @@ export default function App() {
         <nav className="nav">
           <span className="brand">🃏 PTCG Shop</span>
           <div className="nav-links">
-            <a href="#features">功能</a>
+            <a href="#features">{t("nav_features")}</a>
             <a
               href="#demo"
               onClick={(e) => {
                 e.preventDefault();
-                setShowReplica(true);
+                setView("store");
               }}
             >
-              商城浏览
+              {t("nav_demo")}
             </a>
-            <a href="#arch">架构</a>
-            <a href="#quickstart">快速开始</a>
-            <a href="#roadmap">路线图</a>
+            <a
+              href="#demo"
+              onClick={(e) => {
+                e.preventDefault();
+                setView("admin");
+              }}
+            >
+              {t("nav_admin")}
+            </a>
+            <a href="#arch">{t("nav_arch")}</a>
+            <a href="#quickstart">{t("nav_quickstart")}</a>
+            <a href="#roadmap">{t("nav_roadmap")}</a>
+            <button className="btn-link lang-toggle" onClick={() => setLang(en ? "zh" : "en")}>
+              {t("lang_toggle")}
+            </button>
           </div>
         </nav>
         <div className="hero-body">
-          <h1>PTCG 卡牌商城，一套跑通</h1>
-          <p>宝可梦集换式卡牌在线店 · FastAPI + React 前后端分离 · 邮箱注册 · 邀请码 · Mock 支付闭环 · 订单导出</p>
+          <h1>{t("hero_title")}</h1>
+          <p>{t("hero_sub")}</p>
           <div className="badges">
             <span className="chip">FastAPI</span>
             <span className="chip">React 18</span>
@@ -62,10 +100,20 @@ export default function App() {
               href="#demo"
               onClick={(e) => {
                 e.preventDefault();
-                setShowReplica(true);
+                setView("store");
               }}
             >
-              进入商城浏览
+              {t("cta_browse")}
+            </a>
+            <a
+              className="cta primary-ghost"
+              href="#demo"
+              onClick={(e) => {
+                e.preventDefault();
+                setView("admin");
+              }}
+            >
+              {t("cta_admin")}
             </a>
             <a
               className="cta ghost"
@@ -73,30 +121,29 @@ export default function App() {
               target="_blank"
               rel="noreferrer"
             >
-              查看源码
+              {t("cta_source")}
             </a>
           </div>
         </div>
       </header>
 
       {/* ---------- Features ---------- */}
-      <Section id="features" kicker="六大核心能力" title="这不是截图，是跑得动的代码">
+      <Section id="features" kicker={t("features_kicker")} title={t("features_title")}>
         <div className="feature-grid">
           {features.map((f) => (
             <div key={f.title} className="feature-card">
               <div className="feature-icon">{f.icon}</div>
-              <h3>{f.title}</h3>
-              <p>{f.desc}</p>
+              <h3>{en ? f.title_en : f.title}</h3>
+              <p>{en ? f.desc_en : f.desc}</p>
             </div>
           ))}
         </div>
       </Section>
 
       {/* ---------- Store demo ---------- */}
-      <Section id="demo" kicker="商城真实界面复刻" title="与前端一模一样 · 点击进入浏览">
+      <Section id="demo" kicker={t("demo_kicker")} title={t("demo_title")}>
         <p className="note" style={{ marginBottom: 18 }}>
-          点击下方按钮进入商城复刻视图：注册 → 验证 → 登录 → 加购 → 购物车改数量 → 结算 → 模拟支付 → 订单变「已支付」。
-          界面与真实 web 前端（React 18）完全一致，数据为页面内置假数据，不发任何网络请求。
+          {t("demo_note")}
         </p>
         <div className="cta-row" style={{ justifyContent: "flex-start", marginBottom: 22 }}>
           <a
@@ -104,24 +151,34 @@ export default function App() {
             href="#demo"
             onClick={(e) => {
               e.preventDefault();
-              setShowReplica(true);
+              setView("store");
             }}
           >
-            🃏 进入商城浏览
+            🃏 {t("cta_browse")}
+          </a>
+          <a
+            className="cta primary-ghost"
+            href="#demo"
+            onClick={(e) => {
+              e.preventDefault();
+              setView("admin");
+            }}
+          >
+            🧑‍💼 {t("cta_admin")}
           </a>
         </div>
         <StoreDemo />
       </Section>
 
       {/* ---------- Architecture ---------- */}
-      <Section id="arch" kicker="总体架构" title="三个前端 + 一个 API + 可插拔基础设施">
+      <Section id="arch" kicker={t("arch_kicker")} title={t("arch_title")}>
         <div className="arch-wrap">
           <ArchDiagram />
         </div>
       </Section>
 
       {/* ---------- Quick start ---------- */}
-      <Section id="quickstart" kicker="快速开始" title="从 clone 到下单，六条命令">
+      <Section id="quickstart" kicker={t("quickstart_kicker")} title={t("quickstart_title")}>
         <pre className="code">
           {quickStart.map((line) => (
             <div key={line} className={line.startsWith("cd ") || line.includes("docker") ? "cmd" : ""}>
@@ -129,27 +186,22 @@ export default function App() {
             </div>
           ))}
         </pre>
-        <p className="note">
-          首次启动自动建表并写入种子：管理员 <code>admin@shop-dev.com / Admin#12345</code> + 4 件演示商品。
-          开发环境验证码会打印在后端控制台（Mailpit 未启动时）。
-        </p>
+        <p className="note">{t("quickstart_note")}</p>
       </Section>
 
       {/* ---------- Roadmap ---------- */}
-      <Section id="roadmap" kicker="路线图" title="M1 – M6 全部交付">
+      <Section id="roadmap" kicker={t("roadmap_kicker")} title={t("roadmap_title")}>
         <div className="roadmap">
           {milestones.map((m, i) => (
             <div key={m.name} className={"milestone" + (m.done ? " done" : "")}>
               <div className="ms-dot">{m.done ? "✓" : i + 1}</div>
-              <div className="ms-name">{m.name}</div>
+              <div className="ms-name">{en ? m.name_en : m.name}</div>
             </div>
           ))}
         </div>
       </Section>
 
-      <footer className="footer">
-        PTCG Shop · 本页为 GitHub Pages 静态门面，真实系统为前后端分离部署 · 设计文档见仓库 <code>docs/DESIGN.md</code>
-      </footer>
+      <footer className="footer">{t("footer_text")}</footer>
     </div>
   );
 }
