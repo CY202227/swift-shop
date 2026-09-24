@@ -283,23 +283,26 @@ erDiagram
     orders ||--o{ payments : "支付单"
     products ||--o{ cart_items : ""
     products ||--o{ order_items : ""
-    admin_users ||--o{ invite_codes : "生成"
+    users ||--o{ invite_codes : "生成(super)"
     invite_codes ||--o{ users : "被使用"
 ```
 
 | 表                 | 关键字段                                                                                                                          |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `users`           | id, email(唯一), password_hash(可空,OAuth用户无), username, avatar_url, **role(user/admin)**, status, **invite_code_id**, created_at |
+| `users`           | id, email(唯一), password_hash(可空,OAuth用户无), username, avatar_url, **role(user/admin/super_admin)**, status, **discount_percent(会员折扣%)**, **invite_code_id**, created_at |
 | `oauth_accounts`  | id, user_id, provider(google), provider_user_id(唯一), created_at                                                               |
 | `refresh_tokens`  | id, user_id, token_hash, expires_at, revoked_at                                                                               |
 | `invite_codes`    | id, code(唯一), **max_uses, used_count, expires_at, status, created_by, remark**                                                |
-| `system_settings` | key(唯一), value(jsonb) —— 存 `invite_required` 等开关                                                                              |
-| `products`        | id, name, slug(唯一), description, **price_cents**, stock, images(jsonb), **status(draft/active/retired)**, created_at          |
+| `system_settings` | key(唯一), value(jsonb) —— 存 `invite_required`、`shop_name` 等开关                                                                |
+| `products`        | id, name, slug(唯一), description, **price_cents**, **discount_percent(商品折扣%)**, stock, images(jsonb), **status(draft/active/retired)**, created_at          |
+| `promotions`      | id, name(唯一), **kind(percent_off/buy_n_get_1)**, value, buy_qty, **status(active/ended)**, starts_at, ends_at, created_by, created_at |
 | `cart_items`      | user_id + product_id 唯一, qty                                                                                                  |
-| `orders`          | id, order_no(唯一), user_id, **status**, total_cents, paid_at, created_at                                                       |
-| `order_items`     | order_id, product_id, title快照, unit_price_cents, qty                                                                          |
+| `orders`          | id, order_no(唯一), user_id, **status**, **subtotal_cents(折前小计)**, **discount_cents(会员折扣)**, total_cents, **promotion_name(活动快照)**, paid_at, created_at |
+| `order_items`     | order_id, product_id, title快照, unit_price_cents(折后单价快照), **original_price_cents(原价快照)**, qty, **line_total_cents(行小计)** |
 | `payments`        | id, order_id, provider, provider_trade_no, amount_cents, status, raw_payload(jsonb)                                           |
 | `export_logs`     | who, filters(jsonb), format, row_count, created_at                                                                            |
+
+> 定价规则：所有金额为整数分，折扣叠加用整数 floor（`x * (100-p) // 100`），服务端是唯一事实源；orders/order_items 留存完整价格快照，促销/折扣改价不影响历史订单。
 
 迁移用 **Alembic**，首个版本即建全表 + 种子数据（管理员账号、初始开关）。
 
@@ -342,16 +345,25 @@ GET  /me/export/orders                 导出自己的购买记录
 POST /payments/webhook/{provider}      mock/stripe/alipay/wechat_pay
 ```
 
-**管理后台（role=admin）**
+**管理后台（role=admin 与 super_admin 按端点拆分，admin 登录仅见受限菜单）**
 
 ```
-GET/POST/PATCH/DELETE /admin/products       商品 CRUD
-POST  /admin/products/{id}/publish|unpublish 上架 / 下架
-GET/POST/PATCH/DELETE /admin/invite-codes      邀请码生成/批量/作废
-GET/PATCH /admin/settings                      读写 invite_required 等开关
-GET /admin/users  PATCH /admin/users/{id}      用户管理
-GET /admin/orders ...                          订单查看与流转
+GET/POST/PATCH/DELETE /admin/products       商品 CRUD（super）；admin 仅可 PATCH discount_percent
+POST  /admin/products/{id}/publish|unpublish 上架 / 下架（super）
+GET/POST/PATCH/DELETE /admin/promotions      全场活动 CRUD + 结束（super）
+GET/POST/PATCH/DELETE /admin/invite-codes      邀请码生成/批量/作废（super）
+GET/PATCH /admin/settings                      读写 invite_required / shop_name（super）
+GET /admin/users  PATCH /admin/users/{id}      用户管理：查看+设折扣（admin）/ 封禁+角色分配（super）
+GET /admin/orders ...                          订单查看与流转（admin+）
+GET /admin/stats/revenue                      营收统计：已实现/预计 + 30天逐日序列（super）
 GET /admin/export/orders                       ★ 购买记录导出 csv|xlsx
+```
+
+**公共（无鉴权，供门面/多端 storefront 用）**
+
+```
+GET /public/settings                          shop_name + invite_required + 当前生效活动
+GET /public/google-client-id                  Google OAuth client id（未配置时返回空，前端显示提示）
 ```
 
 > FastAPI 自动产出 Swagger：开发期 `http://localhost:8000/docs` 直接调试。
@@ -435,7 +447,7 @@ shop/                       # 仓库名待定（见 §11 命名建议）→ GitH
 └─ README.md
 ```
 
-里程碑：M1 基建+docker-compose+骨架 → M2 认证注册（含邀请码）→ M3 商品+购物车 → M4 订单+Mock 支付闭环+webhook → M5 管理后台（上下架/开关/邀请码/导出）→ M6 演示站点上线 Pages。
+里程碑：M1 基建+docker-compose+骨架 → M2 认证注册（含邀请码）→ M3 商品+购物车 → M4 订单+Mock 支付闭环+webhook → M5 管理后台（上下架/开关/邀请码/导出）→ M6 演示站点上线 Pages → **M7**（已交付）三级角色权限（user/admin/super_admin 按端点拆分）+ 定价引擎（商品%×全场活动%×会员% 整数 floor，服务端单一事实）+ 营收统计（已实现/预计 + 30 天曲线）+ 三端 i18n（zh/en）+ Google 登录入口 + site 管理后台复刻。
 
 ## 11. GitHub Pages 演示站点（site/）
 
@@ -474,4 +486,4 @@ shop/                       # 仓库名待定（见 §11 命名建议）→ GitH
 
 推荐 Repo 描述（可直接复制）：
 
-> 全栈电商解决方案：FastAPI + React 前后端分离，支持 Google/邮箱注册、邀请码开关、商品上下架、订单记录导出，支付网关接口已预留。附 GitHub Pages 演示站点。
+> 全栈电商解决方案：FastAPI + React 前后端分离，支持 Google/邮箱注册、邀请码开关、三级角色权限、商品折扣/全场活动引擎、营收统计、订单记录导出，支付网关接口已预留。三端中英双语，附 GitHub Pages 演示站点。
