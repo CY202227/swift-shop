@@ -156,12 +156,18 @@ class OrderItemOut(ORMModel):
     title: str
     unit_price_cents: int
     qty: int
+    original_price_cents: int = 0
+    line_total_cents: int = 0
 
 
 class OrderOut(ORMModel):
     id: int
     order_no: str
     status: str
+    # money snapshots so storefronts can render the discount breakdown
+    subtotal_cents: int = 0
+    discount_cents: int = 0
+    promotion_name: str | None = None
     total_cents: int
     paid_at: datetime | None
     created_at: datetime

@@ -167,8 +167,10 @@ class OrderItem(Base):
     title: Mapped[str] = mapped_column(String(128), nullable=False)          # snapshot at purchase time
     unit_price_cents: Mapped[int] = mapped_column(Integer, nullable=False)   # snapshot, server-side price
     qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    original_price_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # list price snapshot
+    line_total_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)     # effective unit * qty
 
-    order: Mapped[Order] = relationship(back_populates="items")
+    order: Mapped["Order"] = relationship(back_populates="items")
 
 
 class Payment(Base):

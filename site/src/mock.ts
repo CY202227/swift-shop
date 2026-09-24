@@ -31,11 +31,12 @@ export const products: MockProduct[] = [
 
 export const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
 
-// Effective unit price after product discount + active promotion stacking
+// Effective unit price after product discount + active promotion stacking.
+// Uses integer floor division exactly like the backend pricing engine (// 100).
 export const effectiveCents = (p: MockProduct) => {
   let c = p.price_cents;
-  if (p.discount_percent > 0) c = Math.round(c * (100 - p.discount_percent) / 100);
-  if (promotion.active && promotion.kind === "percent_off") c = Math.round(c * (100 - promotion.value) / 100);
+  if (p.discount_percent > 0) c = Math.floor(c * (100 - p.discount_percent) / 100);
+  if (promotion.active && promotion.kind === "percent_off") c = Math.floor(c * (100 - promotion.value) / 100);
   return c;
 };
 

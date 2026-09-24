@@ -195,7 +195,7 @@ export default function StoreReplica({ onExit, lang }: { onExit: () => void; lan
         // Same math as the live pricing engine: product% + promotion% then member%
         const subtotal = c.reduce((s, l) => s + effectiveCents(l.product) * l.qty, 0);
         const discount = user?.discount_percent
-          ? Math.round(subtotal * user.discount_percent / 100)
+          ? Math.floor(subtotal * user.discount_percent / 100)
           : 0;
         const total = subtotal - discount;
         setOrders((os) => [
@@ -240,7 +240,7 @@ export default function StoreReplica({ onExit, lang }: { onExit: () => void; lan
   };
 
   const subtotalCents = cart.reduce((s, l) => s + effectiveCents(l.product) * l.qty, 0);
-  const memberDiscountCents = user?.discount_percent ? Math.round(subtotalCents * user.discount_percent / 100) : 0;
+  const memberDiscountCents = user?.discount_percent ? Math.floor(subtotalCents * user.discount_percent / 100) : 0;
 
   const priceCell = (p: MockProduct) => {
     const eff = effectiveCents(p);
