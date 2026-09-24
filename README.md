@@ -1,6 +1,6 @@
-# Swift Shop 🛒
+# PTCG Shop 🃏
 
-全栈电商解决方案：**FastAPI + React 前后端分离**，支持 Google/邮箱注册、邀请码开关、商品上下架、订单记录导出，支付网关接口已预留（内置 Mock 支付闭环）。
+宝可梦集换式卡牌（PTCG）在线商城：**FastAPI + React 前后端分离**，支持邮箱注册、邀请码开关、卡牌商品上下架、订单记录导出，支付网关接口已预留（内置 Mock 支付闭环）。
 
 > 🌐 **在线演示门面**：<https://YOUR_NAME.github.io/swift-shop/>（`site/` 构建产物，纯静态展示）
 > 📖 **设计文档**：[docs/DESIGN.md](docs/DESIGN.md)
@@ -33,7 +33,7 @@
 # 1) 基础设施（可选；开发默认 SQLite + 本地盘存储，可不启动）
 docker compose up -d          # pg + minio + mailpit
 
-# 2) 后端（:8010，首次启动自动建表 + 种子管理员 + 演示商品）
+# 2) 后端（:8010，首次启动自动建表 + 种子管理员 + 4 张 PTCG 演示卡牌）
 cd backend
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt      # Windows；macOS/Linux 用 .venv/bin/pip

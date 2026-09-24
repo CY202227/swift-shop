@@ -1,46 +1,35 @@
-import { yuan } from "./mock";
+import { products, yuan } from "./mock";
 
-// Pure-frontend storefront mock: cards, a demo cart, and the orderstatus flow
-// that the real backend implements — zero network requests.
+// Pure-frontend storefront mock: PTCG card products, a demo cart, and the
+// order-status flow that the real backend implements — zero network requests.
 export default function StoreDemo() {
+  const cards = products.slice(0, 3);
   return (
     <div className="demo-grid">
       <div className="demo-products">
-        <div className="demo-label">商城商品（静态假数据）</div>
+        <div className="demo-label">商城商品（PTCG 卡牌 · 静态假数据）</div>
         <div className="demo-cards">
-          <div className="demo-card">
-            <div className="demo-emoji">⌨️</div>
-            <div className="demo-name">机械键盘 87键</div>
-            <div className="demo-price">{yuan(29900)}</div>
-            <div className="demo-add">加入购物车</div>
-          </div>
-          <div className="demo-card">
-            <div className="demo-emoji">🖱️</div>
-            <div className="demo-name">无线鼠标</div>
-            <div className="demo-price">{yuan(12900)}</div>
-            <div className="demo-add">加入购物车</div>
-          </div>
-          <div className="demo-card">
-            <div className="demo-emoji">🎧</div>
-            <div className="demo-name">降噪耳机</div>
-            <div className="demo-price">{yuan(89900)}</div>
-            <div className="demo-add">加入购物车</div>
-          </div>
+          {cards.map((p) => (
+            <div key={p.id} className="demo-card">
+              <div className="demo-emoji">{p.emoji}</div>
+              <div className="demo-name">{p.name}</div>
+              <div className="demo-price">{yuan(p.price_cents)}</div>
+              <div className="demo-add">加入购物车</div>
+            </div>
+          ))}
         </div>
 
         <div className="demo-cart">
           <div className="demo-cart-head">🛒 购物车（前端仅作展示，金额由服务端重算）</div>
-          <div className="demo-line">
-            <span>机械键盘 87键 × 1</span>
-            <span>{yuan(29900)}</span>
-          </div>
-          <div className="demo-line">
-            <span>无线鼠标 × 2</span>
-            <span>{yuan(25800)}</span>
-          </div>
+          {cards.slice(0, 2).map((p) => (
+            <div key={p.id} className="demo-line">
+              <span>{p.name} × {p.id === 1 ? 1 : 2}</span>
+              <span>{yuan(p.price_cents * (p.id === 1 ? 1 : 2))}</span>
+            </div>
+          ))}
           <div className="demo-line total">
             <span>服务端重算合计</span>
-            <span>{yuan(55700)}</span>
+            <span>{yuan(products[0].price_cents + products[1].price_cents * 2)}</span>
           </div>
           <div className="demo-btn">结算下单 →</div>
         </div>

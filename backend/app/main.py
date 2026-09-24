@@ -15,18 +15,23 @@ from app.db.base import Base, engine
 
 
 DEMO_PRODUCTS = [
-    {"name": "机械键盘 87键", "slug": "mech-keyboard-87", "price_cents": 29900,
-     "stock": 50, "description": "热插拔轴体，PBT 键帽，三模连接", "status": "active",
-     "images": []},
-    {"name": "无线鼠标", "slug": "wireless-mouse", "price_cents": 12900,
-     "stock": 80, "description": "静音微动，人体工学，Type-C 快充", "status": "active",
-     "images": []},
-    {"name": "降噪耳机", "slug": "anc-headphones", "price_cents": 89900,
-     "stock": 20, "description": "主动降噪 42dB，续航 60 小时", "status": "active",
-     "images": []},
-    {"name": "USB-C 扩展坞", "slug": "usbc-dock", "price_cents": 35900,
-     "stock": 35, "description": "8 合 1，HDMI 4K60，千兆网口", "status": "active",
-     "images": []},
+    # PTCG (Pokemon TCG) demo cards — the shop sells trading cards
+    {"name": "喷火龙 ex·SSP 黑色星标 promo", "slug": "charizard-ex-ssp-black-star",
+     "price_cents": 29900, "stock": 50,
+     "description": "SVR 特典卡 · 2023 世锦赛限定 · PSA 评级热门",
+     "status": "active", "images": []},
+    {"name": "皮卡丘 with 灰帽子·25周年", "slug": "pikachu-gray-cap-25th",
+     "price_cents": 12900, "stock": 80,
+     "description": "经典俏皮闪 · 25 周年纪念插画",
+     "status": "active", "images": []},
+    {"name": "梦幻 ex·151 补充包 PSA 9", "slug": "mew-ex-151-psa9",
+     "price_cents": 89900, "stock": 20,
+     "description": "151 全图特异 S 异画 · PSA 评级",
+     "status": "active", "images": []},
+    {"name": "沙奈朵 ex·S12a 漂亮宝贝", "slug": "gardevoir-ex-s12a",
+     "price_cents": 35900, "stock": 35,
+     "description": "SAR 超级闪耀稀有 · 收藏品相 NM",
+     "status": "active", "images": []},
 ]
 
 

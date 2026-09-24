@@ -18,7 +18,7 @@ export default function App() {
       {/* ---------- Hero ---------- */}
       <header className="hero">
         <nav className="nav">
-          <span className="brand">🛒 Swift Shop</span>
+          <span className="brand">🃏 PTCG Shop</span>
           <div className="nav-links">
             <a href="#features">功能</a>
             <a href="#demo">商城预览</a>
@@ -28,8 +28,8 @@ export default function App() {
           </div>
         </nav>
         <div className="hero-body">
-          <h1>全栈电商，一套跑通</h1>
-          <p>FastAPI + React 前后端分离 · 邮箱/Google 注册 · 邀请码开关 · Mock 支付闭环 · 订单导出</p>
+          <h1>PTCG 卡牌商城，一套跑通</h1>
+          <p>宝可梦集换式卡牌在线店 · FastAPI + React 前后端分离 · 邮箱注册 · 邀请码 · Mock 支付闭环 · 订单导出</p>
           <div className="badges">
             <span className="chip">FastAPI</span>
             <span className="chip">React 18</span>
@@ -110,7 +110,7 @@ export default function App() {
       </Section>
 
       <footer className="footer">
-        Swift Shop · 本页为 GitHub Pages 静态门面，真实系统为前后端分离部署 · 设计文档见仓库 <code>docs/DESIGN.md</code>
+        PTCG Shop · 本页为 GitHub Pages 静态门面，真实系统为前后端分离部署 · 设计文档见仓库 <code>docs/DESIGN.md</code>
       </footer>
     </div>
   );

@@ -11,10 +11,10 @@ export interface MockProduct {
 }
 
 export const products: MockProduct[] = [
-  { id: 1, name: "机械键盘 87键", price_cents: 29900, desc: "热插拔轴体 · PBT 键帽 · 三模连接", emoji: "⌨️", stock: 50 },
-  { id: 2, name: "无线鼠标", price_cents: 12900, desc: "静音微动 · 人体工学 · Type-C 快充", emoji: "🖱️", stock: 80 },
-  { id: 3, name: "降噪耳机", price_cents: 89900, desc: "主动降噪 42dB · 续航 60 小时", emoji: "🎧", stock: 20 },
-  { id: 4, name: "USB-C 扩展坞", price_cents: 35900, desc: "8 合 1 · HDMI 4K60 · 千兆网口", emoji: "🔌", stock: 35 },
+  { id: 1, name: "喷火龙 ex·SSP 黑色星标 promo", price_cents: 29900, desc: "SVR 特典卡 · 2023 世锦赛限定 · PSA 评级热门", emoji: "🔥", stock: 50 },
+  { id: 2, name: "皮卡丘 with 灰帽子 · 25周年", price_cents: 12900, desc: "经典俏皮闪 · 25 周年纪念插画", emoji: "⚡", stock: 80 },
+  { id: 3, name: "梦幻 ex · 151 补充包 PSA 9", price_cents: 89900, desc: "151 全图特异 S 异画 · PSA 评级", emoji: "✨", stock: 20 },
+  { id: 4, name: "沙奈朵 ex·S12a 漂亮宝贝", price_cents: 35900, desc: "SAR 超级闪耀稀有 · 收藏品相 NM", emoji: "🌸", stock: 35 },
 ];
 
 export const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
@@ -56,7 +56,7 @@ export const milestones = [
   { name: "M1 基建 + compose", done: true },
   { name: "M2 认证注册（邀请码）", done: true },
   { name: "M3 商品 + 购物车", done: true },
-  { name: "M4 订单 + Mock 支付", done: true },
+  { name: "M4 订单 + 支付", done: true },
   { name: "M5 管理后台", done: true },
   { name: "M6 演示站点", done: true },
 ];
