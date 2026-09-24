@@ -3,6 +3,8 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-
 import { Spin } from "antd";
 import { get } from "./api";
 import { clearTokens, loadTokens } from "./api";
+import { AuthCtx } from "./auth";
+import type { AdminUser } from "./types";
 import AdminGuard from "./components/AdminGuard";
 import AdminLayout from "./components/AdminLayout";
 import LoginPage from "./pages/LoginPage";
@@ -11,9 +13,11 @@ import ProductsPage from "./pages/ProductsPage";
 import InvitesPage from "./pages/InvitesPage";
 import UsersPage from "./pages/UsersPage";
 import OrdersPage from "./pages/OrdersPage";
+import PromotionsPage from "./pages/PromotionsPage";
+import RevenuePage from "./pages/RevenuePage";
 
 export default function App() {
-  const [user, setUser] = useState<object | null | undefined>(undefined); // undefined = booting
+  const [user, setUser] = useState<AdminUser | null | undefined>(undefined); // undefined = booting
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -25,7 +29,7 @@ export default function App() {
       return;
     }
     get("/api/v1/auth/me")
-      .then((u) => setUser(u as object))
+      .then((u) => setUser(u as AdminUser))
       .catch(() => {
         clearTokens();
         setUser(null);
@@ -35,7 +39,16 @@ export default function App() {
   const requireLogin = (el: React.ReactNode) => {
     if (user === undefined) return <Spin style={{ display: "block", margin: "120px auto" }} />;
     if (user === null) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-    return el;
+    // Both admin tiers may enter; regular users are bounced at the door
+    if (user.role !== "admin" && user.role !== "super_admin") {
+      clearTokens();
+      return <Navigate to="/login" replace />;
+    }
+    return (
+      <AuthCtx.Provider value={{ user: user as AdminUser }}>
+        {el}
+      </AuthCtx.Provider>
+    );
   };
 
   return (
@@ -84,9 +97,11 @@ export default function App() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="products" element={<ProductsPage />} />
+        <Route path="promotions" element={<PromotionsPage />} />
         <Route path="invites" element={<InvitesPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="revenue" element={<RevenuePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

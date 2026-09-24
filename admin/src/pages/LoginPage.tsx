@@ -21,7 +21,7 @@ export default function LoginPage({ onLogin }: { onLogin: (u: AdminUser) => void
         email: String(fd.get("email")),
         password: String(fd.get("password")),
       });
-      if (out.user.role !== "admin") {
+      if (out.user.role !== "admin" && out.user.role !== "super_admin") {
         setErr("该账号不是管理员，无法登录后台");
         return;
       }

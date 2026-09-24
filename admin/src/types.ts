@@ -8,6 +8,7 @@ export interface AdminUser {
   role: string;
   status: string;
   email_verified: boolean;
+  discount_percent?: number;
   created_at: string;
 }
 
@@ -28,6 +29,10 @@ export interface Dashboard {
   pending_payment: number;
 }
 
+// role helpers shared across pages
+export const isSuperAdmin = (u?: AdminUser | object | null): boolean =>
+  !!(u as AdminUser | undefined)?.role && (u as AdminUser).role === "super_admin";
+
 export interface Product {
   id: number;
   name: string;
@@ -37,6 +42,7 @@ export interface Product {
   stock: number;
   images: string[];
   status: string;
+  discount_percent: number;
   created_at: string;
 }
 
@@ -65,6 +71,7 @@ export interface InvitePage {
 
 export interface Settings {
   invite_required: boolean;
+  shop_name?: string;
 }
 
 export interface UserRow {
@@ -73,6 +80,7 @@ export interface UserRow {
   username: string;
   role: string;
   status: string;
+  discount_percent: number;
   invite_code_id: number | null;
   created_at: string;
 }
@@ -108,4 +116,29 @@ export interface OrderPage {
   total: number;
   page: number;
   pages: number;
+}
+
+// ---------- Promotions (super_admin) ----------
+export interface Promotion {
+  id: number;
+  name: string;
+  kind: "percent_off" | "buy_n_get_1";
+  value: number;
+  status: string;
+  starts_at: string;
+  ends_at: string | null;
+  created_at: string;
+}
+
+// ---------- Revenue stats (super_admin) ----------
+export interface RevenuePoint {
+  date: string;
+  revenue_cents: number;
+}
+
+export interface Revenue {
+  realized_cents: number;
+  expected_cents: number;
+  currency: string;
+  series: RevenuePoint[];
 }

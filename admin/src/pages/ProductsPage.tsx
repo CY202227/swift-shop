@@ -20,9 +20,49 @@ import {
 import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd";
 import { del, get, patch, post } from "../api";
-import type { Product, ProductPage } from "../types";
+import { useAuth } from "../auth";
+import { isSuperAdmin, type Product, type ProductPage } from "../types";
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+
+// Inline editable discount cell: admins can tweak per-product %, super sees the same control
+function DiscountCell({ product, onSaved }: { product: Product; onSaved: () => void }) {
+  const [val, setVal] = useState<number>(product.discount_percent);
+  const [saving, setSaving] = useState(false);
+  const [msgApi, msgHolder] = message.useMessage();
+  const save = async (next: number | null) => {
+    // Regular admins may only touch discount_percent (backend enforces the same rule)
+    const v = Math.max(0, Math.min(100, next ?? 0));
+    if (v === product.discount_percent) { setVal(product.discount_percent); return; }
+    setSaving(true);
+    try {
+      await patch(`/api/v1/admin/products/${product.id}`, { discount_percent: v });
+      msgApi.success(`已更新 ${product.name} 折扣 ${v}%`);
+      onSaved();
+    } catch (e) {
+      msgApi.error(e instanceof Error ? e.message : "保存失败");
+      setVal(product.discount_percent);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Space size={6}>
+      {msgHolder}
+      <InputNumber
+        size="small"
+        min={0}
+        max={100}
+        value={val}
+        disabled={saving}
+        formatter={(v) => `${v ?? 0}%`}
+        parser={(s) => Number((s ?? "").replace("%", "")) || 0}
+        style={{ width: 74 }}
+        onBlur={() => save(val)}
+      />
+    </Space>
+  );
+}
 
 const STATUS_TAG: Record<string, { color: string; text: string }> = {
   draft: { color: "default", text: "草稿" },
@@ -36,6 +76,7 @@ interface FormValues {
   description?: string;
   price_yuan: number;
   stock: number;
+  discount_percent?: number;
 }
 
 // Create/Edit modal shared by create & edit flows; images handled via uploads API
@@ -69,6 +110,7 @@ function ProductModal({
           description: initial.description ?? "",
           price_yuan: initial.price_cents / 100,
           stock: initial.stock,
+          discount_percent: initial.discount_percent,
         });
         setExistingImgs(initial.images);
       } else {
@@ -94,6 +136,7 @@ function ProductModal({
         description: values.description || null,
         price_cents: Math.round(values.price_yuan * 100),
         stock: values.stock,
+        discount_percent: values.discount_percent ?? 0,
       };
       if (initial) {
         await patch(`/api/v1/admin/products/${initial.id}`, body);
@@ -149,6 +192,13 @@ function ProductModal({
             <InputNumber min={0} style={{ width: 140 }} />
           </Form.Item>
         </Space>
+        <Form.Item
+          name="discount_percent"
+          label="商品折扣（0-100，0 表示无折扣；与全场活动、会员折扣叠加生效）"
+          rules={[{ type: "number", min: 0, max: 100 }]}
+        >
+          <InputNumber min={0} max={100} style={{ width: 140 }} />
+        </Form.Item>
       </Form>
       <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
         图片上传（可选，最多 9 张，≤5MB；支持 jpg/png/webp/gif）
@@ -197,6 +247,8 @@ function ProductModal({
 }
 
 export default function ProductsPage() {
+  const { user } = useAuth();
+  const isSuper = isSuperAdmin(user);
   const [data, setData] = useState<ProductPage | null>(null);
   const [err, setErr] = useState("");
   const [page, setPage] = useState(1);
@@ -231,6 +283,14 @@ export default function ProductsPage() {
     <div>
       {msgHolder}
       {err && <Alert type="error" message={err} showIcon style={{ marginBottom: 12 }} />}
+      {!isSuper && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="只读视图：商品的新建、编辑、上下架与删除仅超级管理员可操作；折扣由超级管理员设定。"
+        />
+      )}
       <Space style={{ marginBottom: 12 }} wrap>
         <Input.Search
           placeholder="按名称搜索"
@@ -249,9 +309,11 @@ export default function ProductsPage() {
             { value: "retired", label: "已下架" },
           ]}
         />
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setModalOpen(true); }}>
-          新建商品
-        </Button>
+        {isSuper && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setModalOpen(true); }}>
+            新建商品
+          </Button>
+        )}
       </Space>
       <Table<Product>
         rowKey="id"
@@ -277,42 +339,57 @@ export default function ProductsPage() {
               </Space>
             ),
           },
-          { title: "Slug", dataIndex: "slug", width: 140, ellipsis: true },
-          { title: "价格", dataIndex: "price_cents", width: 100, render: (c: number) => yuan(c) },
-          { title: "库存", dataIndex: "stock", width: 80 },
+          { title: "Slug", dataIndex: "slug", width: 130, ellipsis: true },
+          { title: "价格", dataIndex: "price_cents", width: 95, render: (c: number) => yuan(c) },
+          {
+            title: "折扣",
+            dataIndex: "discount_percent",
+            width: 110,
+            render: (d: number, r: Product) =>
+              isSuper ? (
+                d > 0 ? <Tag color="red">{100 - d}% 折</Tag> : <Typography.Text type="secondary">—</Typography.Text>
+              ) : (
+                <DiscountCell product={r} onSaved={reload} />
+              ),
+          },
+          { title: "库存", dataIndex: "stock", width: 70 },
           {
             title: "状态",
             dataIndex: "status",
             width: 90,
             render: (s: string) => <Tag color={STATUS_TAG[s]?.color}>{STATUS_TAG[s]?.text ?? s}</Tag>,
           },
-          {
-            title: "操作",
-            key: "actions",
-            width: 280,
-            render: (_, r: Product) => (
-              <Space size={4} wrap>
-                <Button size="small" onClick={() => { setEditing(r); setModalOpen(true); }}>
-                  编辑
-                </Button>
-                {r.status !== "active" ? (
-                  <Button size="small" type="primary" ghost onClick={() => act(() => post(`/api/v1/admin/products/${r.id}/publish`), "已上架")}>
-                    上架
-                  </Button>
-                ) : (
-                  <Button size="small" danger ghost onClick={() => act(() => post(`/api/v1/admin/products/${r.id}/unpublish`), "已下架")}>
-                    下架
-                  </Button>
-                )}
-                <Popconfirm title="确认删除该商品？" onConfirm={() => act(() => del(`/api/v1/admin/products/${r.id}`), "已删除")}>
-                  <Button size="small" danger>删除</Button>
-                </Popconfirm>
-              </Space>
-            ),
-          },
+          ...(isSuper
+            ? [
+                {
+                  title: "操作",
+                  key: "actions",
+                  width: 280,
+                  render: (_: unknown, r: Product) => (
+                    <Space size={4} wrap>
+                      <Button size="small" onClick={() => { setEditing(r); setModalOpen(true); }}>
+                        编辑
+                      </Button>
+                      {r.status !== "active" ? (
+                        <Button size="small" type="primary" ghost onClick={() => act(() => post(`/api/v1/admin/products/${r.id}/publish`), "已上架")}>
+                          上架
+                        </Button>
+                      ) : (
+                        <Button size="small" danger ghost onClick={() => act(() => post(`/api/v1/admin/products/${r.id}/unpublish`), "已下架")}>
+                          下架
+                        </Button>
+                      )}
+                      <Popconfirm title="确认删除该商品？" onConfirm={() => act(() => del(`/api/v1/admin/products/${r.id}`), "已删除")}>
+                        <Button size="small" danger>删除</Button>
+                      </Popconfirm>
+                    </Space>
+                  ),
+                } as const,
+              ]
+            : []),
         ]}
       />
-      <ProductModal open={modalOpen} initial={editing} onClose={() => setModalOpen(false)} onSaved={reload} />
+      {isSuper && <ProductModal open={modalOpen} initial={editing} onClose={() => setModalOpen(false)} onSaved={reload} />}
     </div>
   );
 }

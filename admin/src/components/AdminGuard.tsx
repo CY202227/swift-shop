@@ -3,7 +3,8 @@ import { Navigate } from "react-router-dom";
 import { Result, Spin } from "antd";
 import type { AdminUser } from "../types";
 
-// Blocks non-admin users even if they hold a valid token
+// Blocks non-admin users even if they hold a valid token.
+// Both admin and super_admin pass; page-level menus split further by role.
 export default function AdminGuard({
   user,
   onLogout,
@@ -16,7 +17,7 @@ export default function AdminGuard({
   if (user === undefined) return <Spin style={{ display: "block", margin: "120px auto" }} />;
   if (user === null) return <Navigate to="/login" replace />;
   const u = user as AdminUser;
-  if (u.role !== "admin") {
+  if (u.role !== "admin" && u.role !== "super_admin") {
     return (
       <Result
         status="403"
