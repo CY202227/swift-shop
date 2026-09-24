@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { features, milestones, quickStart } from "./mock";
 import StoreDemo from "./StoreDemo";
+import StoreReplica from "./StoreReplica";
 import ArchDiagram from "./ArchDiagram";
 
 function Section({ id, kicker, title, children }: { id: string; kicker: string; title: string; children: React.ReactNode }) {
@@ -13,6 +15,12 @@ function Section({ id, kicker, title, children }: { id: string; kicker: string; 
 }
 
 export default function App() {
+  const [showReplica, setShowReplica] = useState(false);
+
+  if (showReplica) {
+    return <StoreReplica onExit={() => setShowReplica(false)} />;
+  }
+
   return (
     <div className="page">
       {/* ---------- Hero ---------- */}
@@ -21,7 +29,15 @@ export default function App() {
           <span className="brand">🃏 PTCG Shop</span>
           <div className="nav-links">
             <a href="#features">功能</a>
-            <a href="#demo">商城预览</a>
+            <a
+              href="#demo"
+              onClick={(e) => {
+                e.preventDefault();
+                setShowReplica(true);
+              }}
+            >
+              商城浏览
+            </a>
             <a href="#arch">架构</a>
             <a href="#quickstart">快速开始</a>
             <a href="#roadmap">路线图</a>
@@ -41,7 +57,16 @@ export default function App() {
             <span className="chip">GitHub Pages</span>
           </div>
           <div className="cta-row">
-            <a className="cta primary" href="#quickstart">快速开始</a>
+            <a
+              className="cta primary"
+              href="#demo"
+              onClick={(e) => {
+                e.preventDefault();
+                setShowReplica(true);
+              }}
+            >
+              进入商城浏览
+            </a>
             <a
               className="cta ghost"
               href="https://github.com/YOUR_NAME/swift-shop"
@@ -68,11 +93,24 @@ export default function App() {
       </Section>
 
       {/* ---------- Store demo ---------- */}
-      <Section id="demo" kicker="模拟商城预览" title="纯前端动画演示 · 不发任何请求">
-        <StoreDemo />
-        <p className="note">
-          GitHub Pages 没有后端。真实的注册/下单/支付流程请 clone 仓库后按下方步骤本地运行。
+      <Section id="demo" kicker="商城真实界面复刻" title="与前端一模一样 · 点击进入浏览">
+        <p className="note" style={{ marginBottom: 18 }}>
+          点击下方按钮进入商城复刻视图：注册 → 验证 → 登录 → 加购 → 购物车改数量 → 结算 → 模拟支付 → 订单变「已支付」。
+          界面与真实 web 前端（React 18）完全一致，数据为页面内置假数据，不发任何网络请求。
         </p>
+        <div className="cta-row" style={{ justifyContent: "flex-start", marginBottom: 22 }}>
+          <a
+            className="cta primary"
+            href="#demo"
+            onClick={(e) => {
+              e.preventDefault();
+              setShowReplica(true);
+            }}
+          >
+            🃏 进入商城浏览
+          </a>
+        </div>
+        <StoreDemo />
       </Section>
 
       {/* ---------- Architecture ---------- */}
