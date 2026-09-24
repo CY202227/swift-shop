@@ -22,3 +22,7 @@ Thumbs.db
 
 # Build info caches
 *.tsbuildinfo
+
+# Runtime logs
+*.log
+backend_run.log
