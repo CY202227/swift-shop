@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Env & local data
+.env
+*.db
+uploads/
+
+# Python caches (broader)
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+
+# Build info caches
+*.tsbuildinfo

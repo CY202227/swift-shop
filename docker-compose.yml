@@ -1,0 +1,54 @@
+# 基础设施容器（按需启停）：
+#   docker compose up -d                          # pg + minio + mailpit
+#   docker compose rm -sf                         # 全部停掉
+# 后端与前端在宿主机跑（uvicorn/vite 热更），生产 nginx 由 docker-compose.prod.yml 提供。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shop-pg
+    environment:
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop_local_pw      # 仅本地；生产换强密码
+      POSTGRES_DB: shop
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shop"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: shop-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin   # 仅本地
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # 控制台
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: shop-mailpit
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI: http://localhost:8025
+    volumes:
+      - maildata:/data
+
+volumes:
+  pgdata:
+  miniodata:
+  maildata:
