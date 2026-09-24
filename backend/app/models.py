@@ -30,8 +30,11 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), nullable=False)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)  # null for OAuth-only
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    role: Mapped[str] = mapped_column(String(16), default="user", nullable=False)  # user | admin
+    role: Mapped[str] = mapped_column(String(16), default="user", nullable=False)  # user | admin | super_admin
     status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)  # active | disabled
+    # personal discount granted by an admin (0-99, integer percent), applied on top
+    # of product/promotion discounts at checkout
+    discount_percent: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     invite_code_id: Mapped[int | None] = mapped_column(ForeignKey("invite_codes.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -100,8 +103,25 @@ class Product(Base):
     stock: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     images: Mapped[list] = mapped_column(JSON, default=list, nullable=False)  # list of URLs / object keys
     status: Mapped[str] = mapped_column(String(16), default="draft", nullable=False)  # draft|active|retired
+    # per-product discount (0-100, integer percent). 0 = no discount.
+    # Stacks with an active Promotion as: final = price * (1 - product%) * (1 - promo%)
+    discount_percent: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class Promotion(Base):
+    """Site-wide campaign created by super_admin (e.g. 20% off everything, or buy-N-get-1)."""
+    __tablename__ = "promotions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), default="percent_off", nullable=False)  # percent_off | buy_n_get_1
+    value: Mapped[int] = mapped_column(Integer, default=0, nullable=False)                # percent for percent_off; N for buy_n_get_1
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)     # active | ended
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class CartItem(Base):
@@ -122,6 +142,12 @@ class Order(Base):
     order_no: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(24), default="pending_payment", nullable=False)
+    # money snapshots: subtotal = after product/promotion discounts (incl. buy-N-get-1),
+    # discount_cents = extra personal-discount amount, total = subtotal - discount
+    subtotal_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    discount_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    promotion_id: Mapped[int | None] = mapped_column(ForeignKey("promotions.id"), nullable=True)
+    promotion_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     total_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -45,13 +45,14 @@ async def _init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as db:
-        # --- seed admin account ---
-        if not await db.scalar(select(User.id).where(User.role == "admin")):
+        # --- seed super admin account ---
+        # bootstrap account is super_admin (owns everything: roles, ban, promotions)
+        if not await db.scalar(select(User.id).where(User.role.in_(("admin", "super_admin")))):
             db.add(User(
                 email=settings.ADMIN_EMAIL.lower(),
                 username="admin",
                 password_hash=hash_password(settings.ADMIN_DEFAULT_PASSWORD),
-                role="admin",
+                role="super_admin",
                 email_verified=True,
             ))
             await db.flush()

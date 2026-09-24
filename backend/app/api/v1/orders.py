@@ -16,6 +16,7 @@ from app.core.timeutil import utcnow
 from app.models import CartItem, Order, OrderItem, Payment, Product
 from app.payments import get_provider
 from app.schemas import OrderCreateIn, OrderOut, OrderPageOut, PayIn, PayOut
+from app.services.pricing import apply_user_discount, compute_line_total, compute_unit_price, get_active_promotion
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -39,23 +40,34 @@ async def create_order(body: OrderCreateIn, user: CurrentUser, db: DbDep) -> Ord
     if not rows:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Cart is empty")
 
-    # 2) Validate availability; compute total SERVER-side
-    total = 0
-    plan: list[tuple[int, str, int, int]] = []  # (product_id, title, unit_price, qty)
+    # 2) Validate availability; compute total SERVER-side via pricing engine
+    promotion = await get_active_promotion(db)
+    subtotal = 0
+    plan: list[tuple[int, str, int, int, int]] = []  # (product_id, title, unit_price, qty, line_total)
     for ci, p in rows:
         if p.status != "active":
             raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Product '{p.name}' is no longer on sale")
         if ci.qty > p.stock:
             raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Insufficient stock for '{p.name}'")
-        total += p.price_cents * ci.qty
-        plan.append((p.id, p.name, p.price_cents, ci.qty))
+        unit = compute_unit_price(p, promotion)
+        line = compute_line_total(unit, ci.qty, promotion)
+        subtotal += line
+        plan.append((p.id, p.name, unit, ci.qty, line))
 
-    order = Order(order_no=_gen_order_no(), user_id=user.id, total_cents=total)
+    user_disc = apply_user_discount(subtotal, user)
+    total = subtotal - user_disc
+
+    order = Order(
+        order_no=_gen_order_no(), user_id=user.id, total_cents=total,
+        subtotal_cents=subtotal, discount_cents=user_disc,
+        promotion_id=promotion.id if promotion else None,
+        promotion_name=promotion.name if promotion else None,
+    )
     db.add(order)
     await db.flush()
 
     # 3) Atomic conditional stock deduction; 0 rows updated => someone bought first
-    for product_id, title, unit_price, qty in plan:
+    for product_id, title, unit_price, qty, line_total in plan:
         res = await db.execute(
             update(Product)
             .where(Product.id == product_id, Product.stock >= qty)
@@ -63,7 +75,12 @@ async def create_order(body: OrderCreateIn, user: CurrentUser, db: DbDep) -> Ord
         )
         if res.rowcount == 0:
             raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Stock changed for '{title}', please retry")
-        db.add(OrderItem(order_id=order.id, product_id=product_id, title=title, unit_price_cents=unit_price, qty=qty))
+        db.add(OrderItem(
+            order_id=order.id, product_id=product_id, title=title,
+            unit_price_cents=unit_price, qty=qty,
+            original_price_cents=(await db.get(Product, product_id)).price_cents,
+            line_total_cents=line_total,
+        ))
 
     # 4) Clear the cart
     for ci, _ in rows:

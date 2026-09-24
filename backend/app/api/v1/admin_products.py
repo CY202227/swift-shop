@@ -1,14 +1,22 @@
-"""Admin: product CRUD + publish/unpublish (上下架)."""
+"""Admin: product CRUD + publish/unpublish (上下架).
+
+Permission split (per requirements):
+- admin: list/view products + set per-product discount (打折)
+- super_admin: create/update/delete/publish/unpublish (上下架/管理)
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
-from app.core.deps import AdminUser, DbDep
+from app.core.deps import AdminUser, DbDep, SuperAdminUser
 from app.models import OrderItem, Product
-from app.schemas import ProductAdminIn, ProductOut, ProductPageOut, ProductPatchIn, SettingsPatchIn
+from app.schemas import ProductAdminIn, ProductOut, ProductPageOut, ProductPatchIn
 
 router = APIRouter(prefix="/admin/products", tags=["admin-products"])
+
+# fields a regular admin is allowed to touch; everything else is super-only
+_ADMIN_FIELDS = {"discount_percent"}
 
 
 @router.get("", response_model=ProductPageOut)
@@ -24,7 +32,7 @@ async def list_products(db: DbDep, admin: AdminUser, page: int = 1, size: int = 
 
 
 @router.post("", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
-async def create_product(body: ProductAdminIn, db: DbDep, admin: AdminUser) -> ProductOut:
+async def create_product(body: ProductAdminIn, db: DbDep, sup: SuperAdminUser) -> ProductOut:
     dup = await db.scalar(select(Product.id).where(Product.slug == body.slug))
     if dup:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Slug already exists")
@@ -40,6 +48,14 @@ async def update_product(product_id: int, body: ProductPatchIn, db: DbDep, admin
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
     data = body.model_dump(exclude_unset=True)
+    # Permission split: regular admins may only adjust the discount
+    if admin.role != "super_admin":
+        forbidden = set(data) - _ADMIN_FIELDS
+        if forbidden:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail=f"Super admin only: {', '.join(sorted(forbidden))}",
+            )
     if "slug" in data and data["slug"] != p.slug:
         dup = await db.scalar(select(Product.id).where(Product.slug == data["slug"]))
         if dup:
@@ -51,7 +67,7 @@ async def update_product(product_id: int, body: ProductPatchIn, db: DbDep, admin
 
 
 @router.delete("/{product_id}")
-async def delete_product(product_id: int, db: DbDep, admin: AdminUser) -> dict:
+async def delete_product(product_id: int, db: DbDep, sup: SuperAdminUser) -> dict:
     p = await db.get(Product, product_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Product not found")
@@ -63,7 +79,7 @@ async def delete_product(product_id: int, db: DbDep, admin: AdminUser) -> dict:
 
 
 @router.post("/{product_id}/publish", response_model=ProductOut)
-async def publish(product_id: int, db: DbDep, admin: AdminUser) -> ProductOut:
+async def publish(product_id: int, db: DbDep, sup: SuperAdminUser) -> ProductOut:
     """上架: draft/retired -> active."""
     p = await db.get(Product, product_id)
     if p is None:
@@ -76,7 +92,7 @@ async def publish(product_id: int, db: DbDep, admin: AdminUser) -> ProductOut:
 
 
 @router.post("/{product_id}/unpublish", response_model=ProductOut)
-async def unpublish(product_id: int, db: DbDep, admin: AdminUser) -> ProductOut:
+async def unpublish(product_id: int, db: DbDep, sup: SuperAdminUser) -> ProductOut:
     """下架: active -> retired. Existing orders keep their snapshots."""
     p = await db.get(Product, product_id)
     if p is None:

@@ -75,6 +75,7 @@ class ProductOut(ORMModel):
     stock: int
     images: list
     status: str
+    discount_percent: int = 0
     created_at: datetime
 
 
@@ -101,6 +102,7 @@ class ProductPatchIn(ORMModel):
     price_cents: int | None = Field(default=None, ge=1)
     stock: int | None = Field(default=None, ge=0)
     images: list[str] | None = Field(default=None, max_length=9)
+    discount_percent: int | None = Field(default=None, ge=0, le=100)
 
 
 # ---------- Cart ----------
@@ -123,11 +125,24 @@ class CartItemOut(ORMModel):
     images: list
     qty: int
     subtotal_cents: int
+    product_discount_percent: int = 0
+    effective_unit_cents: int = 0   # after product% + promotion% (pre buy-N-free, pre personal%)
+
+
+class PromotionBrief(ORMModel):
+    id: int
+    name: str
+    kind: str   # percent_off | buy_n_get_1
+    value: int  # percent, or N for buy-N-get-1
 
 
 class CartOut(ORMModel):
     items: list[CartItemOut]
-    total_cents: int
+    total_cents: int            # final: after promotion + personal discount
+    subtotal_cents: int = 0    # after promotion, before personal discount
+    user_discount_percent: int = 0
+    user_discount_cents: int = 0
+    promotion: PromotionBrief | None = None
 
 
 # ---------- Orders ----------
@@ -203,10 +218,13 @@ class InviteRevokeIn(ORMModel):
 # ---------- Settings ----------
 class SettingsOut(ORMModel):
     invite_required: bool
+    shop_name: str = "PTCG Shop"
+    promotion: "PromotionBrief | None" = None
 
 
 class SettingsPatchIn(ORMModel):
     invite_required: bool | None = None
+    shop_name: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 # ---------- Admin users ----------
@@ -216,13 +234,48 @@ class AdminUserOut(ORMModel):
     username: str
     role: str
     status: str
+    discount_percent: int = 0
     invite_code_id: int | None
     created_at: datetime
 
 
 class UserPatchIn(ORMModel):
     status: Literal["active", "disabled"] | None = None
-    role: Literal["user", "admin"] | None = None
+    role: Literal["user", "admin", "super_admin"] | None = None
+    discount_percent: int | None = Field(default=None, ge=0, le=99)
+
+
+# ---------- Promotions (super_admin) ----------
+class PromotionIn(ORMModel):
+    name: str = Field(min_length=1, max_length=128)
+    kind: Literal["percent_off", "buy_n_get_1"]
+    value: int = Field(ge=1, le=100)
+    ends_days: int | None = Field(default=None, ge=1, le=365)
+
+
+class PromotionOut(ORMModel):
+    id: int
+    name: str
+    kind: str
+    value: int
+    status: str
+    starts_at: datetime
+    ends_at: datetime | None
+    created_at: datetime
+
+
+# ---------- Revenue (super_admin) ----------
+class RevenuePoint(ORMModel):
+    date: str          # YYYY-MM-DD
+    revenue_cents: int
+
+
+class RevenueOut(ORMModel):
+    # realized = paid orders; expected = pending_payment orders (预估但未落账)
+    realized_cents: int       # sum(paid orders.total)
+    expected_cents: int       # sum(pending_payment orders.total)
+    currency: str = "CNY"
+    series: list[RevenuePoint]  # realized revenue per day (last 30 days)
 
 
 class AdminOrderOut(ORMModel):

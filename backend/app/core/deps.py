@@ -44,10 +44,21 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 async def require_admin(user: CurrentUser) -> User:
-    if user.role != "admin":
+    # admin or super_admin pass; plain users get 403
+    if user.role not in ("admin", "super_admin"):
         # 403 (not 401): authenticated but not privileged
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Admin only")
     return user
 
 
 AdminUser = Annotated[User, Depends(require_admin)]
+
+
+async def require_super_admin(user: CurrentUser) -> User:
+    # only super_admin passes; admins get 403
+    if user.role != "super_admin":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Super admin only")
+    return user
+
+
+SuperAdminUser = Annotated[User, Depends(require_super_admin)]

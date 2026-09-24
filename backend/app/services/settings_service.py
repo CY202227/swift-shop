@@ -13,6 +13,13 @@ async def get_setting_bool(db: AsyncSession, key: str, default: bool = False) ->
     return bool(row.value)
 
 
+async def get_setting(db: AsyncSession, key: str, default: str = "") -> str:
+    row = await db.get(SystemSetting, key)
+    if row is None:
+        return default
+    return str(row.value)
+
+
 async def set_setting(db: AsyncSession, key: str, value) -> None:
     row = await db.get(SystemSetting, key)
     if row is None:

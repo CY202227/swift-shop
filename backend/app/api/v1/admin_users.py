@@ -1,10 +1,15 @@
-"""Admin: user management (list / disable / role)."""
+"""Admin: user management.
+
+Permission split (per requirements):
+- admin: list + view users, grant personal discount (打折)
+- super_admin: everything above + disable/ban accounts (封号) + role assignment (指定管理员)
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, or_, select
 
-from app.core.deps import AdminUser, DbDep
+from app.core.deps import AdminUser, DbDep, SuperAdminUser
 from app.models import User
 from app.schemas import AdminUserOut, UserPatchIn
 
@@ -34,7 +39,24 @@ async def patch_user(user_id: int, body: UserPatchIn, db: DbDep, admin: AdminUse
     # Guard: cannot demote/disable your own admin account (lockout protection)
     if u.id == admin.id and (body.role == "user" or body.status == "disabled"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Cannot demote/disable yourself")
+
     data = body.model_dump(exclude_unset=True)
+
+    # Permission split: only super_admin may assign roles or ban accounts.
+    # Regular admins can only adjust the personal discount.
+    if "role" in data or "status" in data:
+        if admin.role != "super_admin":
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Super admin only: role assignment / banning")
+        # super admin cannot demote themselves either (handled above via own-id check)
+        if data.get("role") == "super_admin" and u.role != "super_admin":
+            # promoting someone to super_admin while there is already one is fine;
+            # but never allow demoting the last remaining super admin
+            supers = await db.scalar(
+                select(func.count()).select_from(User).where(User.role == "super_admin", User.id != u.id)
+            )
+            if body.role != "super_admin" and supers == 0 and u.role == "super_admin":
+                raise HTTPException(status.HTTP_409_CONFLICT, detail="Cannot demote the last super admin")
+
     for k, v in data.items():
         setattr(u, k, v)
     await db.flush()

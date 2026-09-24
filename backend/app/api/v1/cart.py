@@ -1,4 +1,10 @@
-"""Cart endpoints. Prices/stock in responses are always recomputed from DB."""
+"""Cart endpoints. Prices/stock in responses are always recomputed from DB.
+
+Discount display rules (mirrors pricing engine):
+- effective_unit_cents = price after product% + promotion%
+- promotion buy_n_get_1: cart shows the campaign; savings apply at line level
+- total_cents = subtotal - user personal discount (granted by admin)
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
@@ -6,31 +12,47 @@ from sqlalchemy import select
 
 from app.core.deps import CurrentUser, DbDep
 from app.models import CartItem, Product
-from app.schemas import CartAddIn, CartItemOut, CartOut, CartPatchIn
+from app.schemas import CartAddIn, CartItemOut, CartOut, CartPatchIn, PromotionBrief
+from app.services.pricing import apply_user_discount, compute_unit_price, get_active_promotion
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 
 
-async def _get_cart(db, user_id: int) -> CartOut:
+async def _get_cart(db, user) -> CartOut:
     rows = await db.execute(
         select(CartItem, Product)
         .join(Product, CartItem.product_id == Product.id)
-        .where(CartItem.user_id == user_id, Product.status == "active")
+        .where(CartItem.user_id == user.id, Product.status == "active")
         .order_by(CartItem.id)
     )
+    promotion = await get_active_promotion(db)
     items = []
+    subtotal = 0
     for ci, p in rows.all():
+        eff = compute_unit_price(p, promotion)
+        # line subtotal uses effective price; buy-N-get-1 savings show up at checkout
+        subtotal += eff * ci.qty
         items.append(CartItemOut(
             id=ci.id, product_id=p.id, name=p.name, slug=p.slug,
             price_cents=p.price_cents, stock=p.stock, images=p.images,
-            qty=ci.qty, subtotal_cents=p.price_cents * ci.qty,
+            qty=ci.qty, subtotal_cents=eff * ci.qty,
+            product_discount_percent=p.discount_percent,
+            effective_unit_cents=eff,
         ))
-    return CartOut(items=items, total_cents=sum(i.subtotal_cents for i in items))
+    user_disc = apply_user_discount(subtotal, user)
+    return CartOut(
+        items=items,
+        subtotal_cents=subtotal,
+        user_discount_percent=user.discount_percent,
+        user_discount_cents=user_disc,
+        promotion=PromotionBrief.model_validate(promotion) if promotion else None,
+        total_cents=subtotal - user_disc,
+    )
 
 
 @router.get("", response_model=CartOut)
 async def get_cart(user: CurrentUser, db: DbDep) -> CartOut:
-    return await _get_cart(db, user.id)
+    return await _get_cart(db, user)
 
 
 @router.post("", response_model=CartOut, status_code=status.HTTP_201_CREATED)
@@ -52,7 +74,7 @@ async def add_to_cart(body: CartAddIn, user: CurrentUser, db: DbDep) -> CartOut:
     else:
         db.add(CartItem(user_id=user.id, product_id=body.product_id, qty=body.qty))
     await db.flush()
-    return await _get_cart(db, user.id)
+    return await _get_cart(db, user)
 
 
 @router.patch("/{item_id}", response_model=CartOut)
@@ -67,7 +89,7 @@ async def update_qty(item_id: int, body: CartPatchIn, user: CurrentUser, db: DbD
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Product off-shelf or insufficient stock")
     ci.qty = body.qty
     await db.flush()
-    return await _get_cart(db, user.id)
+    return await _get_cart(db, user)
 
 
 @router.delete("/{item_id}", response_model=CartOut)
@@ -77,7 +99,7 @@ async def remove_item(item_id: int, user: CurrentUser, db: DbDep) -> CartOut:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cart item not found")
     await db.delete(ci)
     await db.flush()
-    return await _get_cart(db, user.id)
+    return await _get_cart(db, user)
 
 
 @router.delete("", response_model=CartOut)
@@ -86,4 +108,4 @@ async def clear_cart(user: CurrentUser, db: DbDep) -> CartOut:
     for ci in rows.all():
         await db.delete(ci)
     await db.flush()
-    return await _get_cart(db, user.id)
+    return await _get_cart(db, user)
