@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { post, ApiError } from "../api";
+import { useI18n } from "../i18n";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -10,6 +11,7 @@ export default function RegisterPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const submit = async (e: FormEvent) => {
@@ -28,7 +30,7 @@ export default function RegisterPage() {
       // Backend sends a 6-digit code to SMTP/mailpit; dev also prints it in server log
       navigate("/verify", { state: { email } });
     } catch (ex) {
-      setErr(ex instanceof ApiError ? ex.detail : "注册失败，请稍后重试");
+      setErr(ex instanceof ApiError ? ex.detail : t("register_failed_retry"));
     } finally {
       setBusy(false);
     }
@@ -36,20 +38,20 @@ export default function RegisterPage() {
 
   return (
     <div className="auth-box">
-      <h1>注册</h1>
+      <h1>{t("register")}</h1>
       <form onSubmit={submit}>
         <label>
-          用户名
+          {t("username")}
           <input
             required
             minLength={2}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="2-64 字符"
+            placeholder={t("username_hint")}
           />
         </label>
         <label>
-          邮箱
+          {t("email")}
           <input
             type="email"
             required
@@ -59,31 +61,31 @@ export default function RegisterPage() {
           />
         </label>
         <label>
-          密码
+          {t("password")}
           <input
             type="password"
             required
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="至少 8 位"
+            placeholder={t("password_hint")}
           />
         </label>
         <label>
-          邀请码（可选）
+          {t("invite_optional")}
           <input
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value)}
-            placeholder="如果管理员开启了邀请注册"
+            placeholder={t("invite_placeholder")}
           />
         </label>
         {err && <div className="form-error">{err}</div>}
         <button className="btn btn-primary btn-block" disabled={busy}>
-          {busy ? "发送验证码…" : "注册"}
+          {busy ? t("sending_code") : t("register")}
         </button>
       </form>
       <p className="auth-switch">
-        已有账号？<Link to="/login">去登录</Link>
+        {t("has_account")}<Link to="/login">{t("go_login")}</Link>
       </p>
     </div>
   );

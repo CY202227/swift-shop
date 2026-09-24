@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { post, ApiError } from "../api";
 import { AuthContext, authFrom } from "../auth";
+import { useI18n } from "../i18n";
 import type { AuthOut } from "../types";
 
 export default function VerifyPage() {
@@ -13,6 +14,7 @@ export default function VerifyPage() {
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
   const { setUser } = useContext(AuthContext);
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const submit = async (e: FormEvent) => {
@@ -24,7 +26,7 @@ export default function VerifyPage() {
       setUser(authFrom(out));
       navigate("/");
     } catch (ex) {
-      setErr(ex instanceof ApiError ? ex.detail : "验证失败");
+      setErr(ex instanceof ApiError ? ex.detail : t("verify_failed"));
     } finally {
       setBusy(false);
     }
@@ -35,23 +37,23 @@ export default function VerifyPage() {
     setInfo("");
     try {
       await post("/api/v1/auth/resend-code", { email });
-      setInfo("如该邮箱有待验证注册，验证码已重新发送（60 秒冷却）");
+      setInfo(t("resend_sent"));
     } catch (ex) {
-      setErr(ex instanceof ApiError ? ex.detail : "发送失败");
+      setErr(ex instanceof ApiError ? ex.detail : t("load_failed"));
     }
   };
 
   return (
     <div className="auth-box">
-      <h1>邮箱验证</h1>
-      <p className="auth-hint">验证码已发送到你的邮箱（开发环境可在 Mailpit 或后端日志查看）</p>
+      <h1>{t("verify_title")}</h1>
+      <p className="auth-hint">{t("verify_hint")}</p>
       <form onSubmit={submit}>
         <label>
-          邮箱
+          {t("email")}
           <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label>
-          验证码
+          {t("verify_code")}
           <input
             required
             inputMode="numeric"
@@ -60,17 +62,17 @@ export default function VerifyPage() {
             maxLength={8}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            placeholder="6 位数字"
+            placeholder={t("verify_code_hint")}
           />
         </label>
         {err && <div className="form-error">{err}</div>}
         {info && <div className="form-info">{info}</div>}
         <button className="btn btn-primary btn-block" disabled={busy}>
-          {busy ? "验证中…" : "完成注册"}
+          {busy ? t("verifying") : t("finish_register")}
         </button>
       </form>
       <p className="auth-switch">
-        没收到？<button className="btn-link" onClick={resend}>重新发送</button>
+        {t("not_received")}<button className="btn-link" onClick={resend}>{t("resend")}</button>
       </p>
     </div>
   );

@@ -1,19 +1,29 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { del, get, post, ApiError } from "../api";
-import { fmtTime, STATUS_TEXT, yuan } from "../format";
+import { useI18n } from "../i18n";
+import { yuan } from "../format";
 import type { Order, OrderPage, PayOut } from "../types";
 
 export default function OrdersPage() {
   const [data, setData] = useState<OrderPage | null>(null);
   const [msg, setMsg] = useState("");
   const location = useLocation() as { state: { newOrder?: Order } | null };
+  const { lang, t } = useI18n();
   const newOrder = location.state?.newOrder;
+
+  const statusText = (s: string) =>
+    ({
+      pending_payment: t("status_pending_payment"),
+      paid: t("status_paid"),
+      cancelled: t("status_cancelled"),
+      completed: t("status_completed"),
+    })[s] ?? s;
 
   const reload = () => {
     get("/api/v1/orders")
       .then((d) => setData(d as OrderPage))
-      .catch((e) => setMsg(e instanceof ApiError ? e.detail : "加载失败"));
+      .catch((e) => setMsg(e instanceof ApiError ? e.detail : t("load_failed")));
   };
 
   useEffect(reload, []);
@@ -26,10 +36,10 @@ export default function OrdersPage() {
         // Mock cashier page is backend-rendered; open then return here after paying
         window.location.href = out.pay_url;
       } else {
-        setMsg("支付渠道未返回支付链接");
+        setMsg(t("err_no_pay_url"));
       }
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.detail : "发起支付失败");
+      setMsg(e instanceof ApiError ? e.detail : t("err_pay"));
     }
   };
 
@@ -39,33 +49,33 @@ export default function OrdersPage() {
       await post(`/api/v1/orders/${orderId}/cancel`);
       reload();
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.detail : "取消失败");
+      setMsg(e instanceof ApiError ? e.detail : t("err_cancel"));
     }
   };
 
-  if (!data) return <div className="empty">{msg || "加载中…"}</div>;
+  if (!data) return <div className="empty">{msg || t("loading")}</div>;
 
   return (
     <div>
-      <h1 className="page-title">我的订单</h1>
+      <h1 className="page-title">{t("my_orders")}</h1>
       {newOrder && (
         <div className="banner">
-          订单 <b>{newOrder.order_no}</b> 已创建，请尽快支付（状态流转见下表）
+          {t("order_created_banner", { no: newOrder.order_no })}
         </div>
       )}
       {msg && <div className="form-error">{msg}</div>}
       {data.items.length === 0 ? (
-        <div className="empty">还没有订单</div>
+        <div className="empty">{t("no_orders_yet")}</div>
       ) : (
         <table className="table">
           <thead>
             <tr>
-              <th>订单号</th>
-              <th>商品</th>
-              <th>金额</th>
-              <th>状态</th>
-              <th>创建时间</th>
-              <th>操作</th>
+              <th>{t("order_no")}</th>
+              <th>{t("order_items")}</th>
+              <th>{t("order_amount")}</th>
+              <th>{t("order_status")}</th>
+              <th>{t("order_created_at")}</th>
+              <th>{t("order_action")}</th>
             </tr>
           </thead>
           <tbody>
@@ -78,23 +88,31 @@ export default function OrdersPage() {
                       {i.title} × {i.qty}
                     </div>
                   ))}
-                </td>
-                <td>¥{yuan(o.total_cents)}</td>
-                <td>
-                  <span className={"badge " + o.status}>{STATUS_TEXT[o.status] ?? o.status}</span>
-                  {o.paid_at && (
-                    <div className="paid-at">{fmtTime(o.paid_at)}</div>
+                  {o.promotion_name && (
+                    <div className="order-promo">🎉 {o.promotion_name}</div>
                   )}
                 </td>
-                <td>{fmtTime(o.created_at)}</td>
+                <td>
+                  ¥{yuan(o.total_cents)}
+                  {(o.discount_cents ?? 0) > 0 && (
+                    <div className="order-discount">
+                      -¥{yuan(o.discount_cents ?? 0)}
+                    </div>
+                  )}
+                </td>
+                <td>
+                  <span className={"badge " + o.status}>{statusText(o.status)}</span>
+                  {o.paid_at && <div className="paid-at">{fmtTimeSafe(o.paid_at)}</div>}
+                </td>
+                <td>{fmtTimeSafe(o.created_at)}</td>
                 <td>
                   {o.status === "pending_payment" && (
                     <>
                       <button className="btn btn-sm btn-primary" onClick={() => pay(o.id)}>
-                        去支付
+                        {t("go_pay")}
                       </button>{" "}
                       <button className="btn btn-sm" onClick={() => cancel(o.id)}>
-                        取消
+                        {t("cancel_order")}
                       </button>
                     </>
                   )}
@@ -106,4 +124,9 @@ export default function OrdersPage() {
       )}
     </div>
   );
+}
+
+function fmtTimeSafe(iso: string | null): string {
+  if (!iso) return "—";
+  return iso.replace("T", " ").slice(0, 16);
 }

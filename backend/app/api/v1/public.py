@@ -8,6 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.deps import DbDep
 from app.schemas import PromotionBrief, SettingsOut
 from app.services.pricing import get_active_promotion
@@ -26,3 +27,9 @@ async def public_settings(db: DbDep) -> SettingsOut:
         shop_name=await get_setting(db, "shop_name", default="PTCG Shop"),
         promotion=PromotionBrief.model_validate(promo) if promo else None,
     )
+
+
+@router.get("/google-client-id")
+async def google_client_id() -> dict:
+    """Client id is public by OAuth design; safe to expose for the login button."""
+    return {"client_id": settings.GOOGLE_CLIENT_ID or ""}

@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { get, post, ApiError } from "../api";
 import { AuthContext } from "../auth";
+import { useI18n } from "../i18n";
 import { yuan } from "../format";
 import type { Product } from "../types";
 
@@ -11,12 +12,13 @@ export default function ProductDetail() {
   const [qty, setQty] = useState(1);
   const [msg, setMsg] = useState("");
   const { user } = useContext(AuthContext);
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   useEffect(() => {
     get(`/api/v1/products/${slug}`)
       .then((d) => setP(d as Product))
-      .catch((e) => setMsg(e instanceof ApiError ? e.detail : "商品不存在"));
+      .catch((e) => setMsg(e instanceof ApiError ? e.detail : t("load_failed")));
   }, [slug]);
 
   const addToCart = async () => {
@@ -28,11 +30,14 @@ export default function ProductDetail() {
       await post("/api/v1/cart", { product_id: p!.id, qty });
       navigate("/cart");
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.detail : "加购失败");
+      setMsg(e instanceof ApiError ? e.detail : t("err_add_cart"));
     }
   };
 
-  if (!p) return <div className="empty">{msg || "加载中…"}</div>;
+  if (!p) return <div className="empty">{msg || t("loading")}</div>;
+
+  const disc = p.discount_percent ?? 0;
+  const eff = disc ? Math.max(1, Math.floor(p.price_cents * (100 - disc) / 100)) : p.price_cents;
 
   return (
     <div className="detail">
@@ -46,12 +51,16 @@ export default function ProductDetail() {
       <div className="detail-info">
         <h1>{p.name}</h1>
         <p className="product-desc">{p.description}</p>
-        <div className="price-lg">¥{yuan(p.price_cents)}</div>
+        <div className="price-lg">
+          {disc > 0 && <s className="price-was">¥{yuan(p.price_cents)}</s>}
+          ¥{yuan(eff)}
+          {disc > 0 && <span className="discount-tag">-{disc}%</span>}
+        </div>
         <div className={"stock" + (p.stock <= 0 ? " out" : "")}>
-          {p.stock > 0 ? `库存 ${p.stock} 件` : "已售罄"}
+          {p.stock > 0 ? `${t("stock_left", { n: p.stock })}` : t("sold_out")}
         </div>
         <div className="qty-row">
-          <label>数量</label>
+          <label>{t("col_qty")}</label>
           <input
             type="number"
             min={1}
@@ -62,7 +71,7 @@ export default function ProductDetail() {
         </div>
         {msg && <div className="form-error">{msg}</div>}
         <button className="btn btn-primary" disabled={p.stock <= 0} onClick={addToCart}>
-          加入购物车
+          {t("add_to_cart")}
         </button>
       </div>
     </div>

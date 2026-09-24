@@ -18,7 +18,7 @@ from app.models import Promotion, Product, User
 async def get_active_promotion(db: AsyncSession) -> Promotion | None:
     """Return the single active promotion (percent_off or buy_n_get_1), if any."""
     from sqlalchemy import select
-    from app.core.timeutil import utcnow
+    from app.core.timeutil import naive_as_utc, utcnow
 
     promos = (
         await db.scalars(
@@ -30,9 +30,10 @@ async def get_active_promotion(db: AsyncSession) -> Promotion | None:
     ).all()
     now = utcnow()
     for p in promos:
-        if p.starts_at and p.starts_at > now:
+        # SQLite returns naive datetimes — normalize before comparing with utcnow()
+        if p.starts_at and naive_as_utc(p.starts_at) > now:
             continue
-        if p.ends_at and p.ends_at < now:
+        if p.ends_at and naive_as_utc(p.ends_at) < now:
             continue
         return p
     return None
