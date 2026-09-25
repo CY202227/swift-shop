@@ -97,6 +97,9 @@ export interface OrderItem {
   title: string;
   unit_price_cents: number;
   qty: number;
+  // price snapshots (server-side pricing engine; missing on very old rows)
+  original_price_cents?: number;
+  line_total_cents?: number;
 }
 
 export interface Order {
@@ -105,6 +108,10 @@ export interface Order {
   user_id?: number;
   user_email?: string | null;
   status: string;
+  // shipping snapshot for fulfilment
+  recipient_name?: string | null;
+  recipient_phone?: string | null;
+  address?: string | null;
   total_cents: number;
   paid_at: string | null;
   created_at: string;

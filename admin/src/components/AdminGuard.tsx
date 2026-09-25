@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { Result, Spin } from "antd";
+import { useAdminI18n } from "../i18n";
 import type { AdminUser } from "../types";
 
 // Blocks non-admin users even if they hold a valid token.
@@ -14,6 +15,7 @@ export default function AdminGuard({
   onLogout: () => void;
   children: ReactNode;
 }) {
+  const { t } = useAdminI18n();
   if (user === undefined) return <Spin style={{ display: "block", margin: "120px auto" }} />;
   if (user === null) return <Navigate to="/login" replace />;
   const u = user as AdminUser;
@@ -22,7 +24,7 @@ export default function AdminGuard({
       <Result
         status="403"
         title="403"
-        subTitle="抱歉，您没有权限访问管理后台。"
+        subTitle={t("guard_no_permission")}
       />
     );
   }

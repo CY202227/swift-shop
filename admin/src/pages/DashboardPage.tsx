@@ -9,6 +9,7 @@ import {
   HourglassOutlined,
 } from "@ant-design/icons";
 import { get } from "../api";
+import { useAdminI18n } from "../i18n";
 import type { Dashboard } from "../types";
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
@@ -16,6 +17,7 @@ const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [err, setErr] = useState("");
+  const { t } = useAdminI18n();
 
   useEffect(() => {
     get<Dashboard>("/api/v1/admin/dashboard")
@@ -27,12 +29,12 @@ export default function DashboardPage() {
   if (!data) return <Card loading />;
 
   const cards: { title: string; value: number | string; icon: React.ReactNode; color?: string }[] = [
-    { title: "用户总数", value: data.users_total, icon: <TeamOutlined />, color: "#4f6ef7" },
-    { title: "商品总数", value: data.products_total, icon: <AppstoreOutlined /> },
-    { title: "在售商品", value: data.products_active, icon: <ShoppingOutlined />, color: "#2e9e5b" },
-    { title: "订单总数", value: data.orders_total, icon: <PayCircleOutlined /> },
-    { title: "已支付订单", value: data.orders_paid, icon: <PayCircleOutlined />, color: "#2e9e5b" },
-    { title: "待支付订单", value: data.pending_payment, icon: <HourglassOutlined />, color: "#b4760a" },
+    { title: t("dash_users_total"), value: data.users_total, icon: <TeamOutlined />, color: "#4f6ef7" },
+    { title: t("dash_products_total"), value: data.products_total, icon: <AppstoreOutlined /> },
+    { title: t("dash_products_active"), value: data.products_active, icon: <ShoppingOutlined />, color: "#2e9e5b" },
+    { title: t("dash_orders_total"), value: data.orders_total, icon: <PayCircleOutlined /> },
+    { title: t("dash_orders_paid"), value: data.orders_paid, icon: <PayCircleOutlined />, color: "#2e9e5b" },
+    { title: t("dash_orders_pending"), value: data.pending_payment, icon: <HourglassOutlined />, color: "#b4760a" },
   ];
 
   return (
@@ -52,7 +54,7 @@ export default function DashboardPage() {
         <Col xs={24} md={12} lg={8}>
           <Card size="small">
             <Statistic
-              title="累计收入（已支付）"
+              title={t("dash_revenue_total")}
               value={yuan(data.revenue_cents)}
               prefix={<span style={{ color: "#d9534f", marginRight: 6 }}><DollarOutlined /></span>}
               valueStyle={{ color: "#d9534f" }}
@@ -61,7 +63,7 @@ export default function DashboardPage() {
         </Col>
       </Row>
       <Typography.Paragraph type="secondary">
-        提示：数据为全站实时统计；收入仅统计状态为「已支付」的订单。
+        {t("dash_hint")}
       </Typography.Paragraph>
     </div>
   );

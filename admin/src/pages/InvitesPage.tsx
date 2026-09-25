@@ -17,6 +17,7 @@ import {
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { get, patch, post } from "../api";
+import { useAdminI18n } from "../i18n";
 import type { Invite, InvitePage, Settings } from "../types";
 import dayjs from "dayjs";
 
@@ -36,6 +37,7 @@ export default function InvitesPage() {
   const [switchLoading, setSwitchLoading] = useState(false);
   const [form] = Form.useForm<GenValues>();
   const [msgApi, msgHolder] = message.useMessage();
+  const { t } = useAdminI18n();
 
   const reload = useCallback(() => {
     get<InvitePage>(`/api/v1/admin/invite-codes?page=${page}&size=10`)
@@ -53,9 +55,9 @@ export default function InvitesPage() {
     try {
       const out = await patch<Settings>("/api/v1/admin/settings", { invite_required: checked });
       setSettings(out);
-      msgApi.success(checked ? "已开启邀请注册：新用户注册需邀请码" : "已关闭邀请注册");
+      msgApi.success(checked ? t("msg_invite_on") : t("msg_invite_off"));
     } catch (e) {
-      msgApi.error(e instanceof Error ? e.message : "切换失败");
+      msgApi.error(e instanceof Error ? e.message : t("msg_toggle_failed"));
     } finally {
       setSwitchLoading(false);
     }
@@ -67,23 +69,23 @@ export default function InvitesPage() {
       if (values.expires_days) body.expires_days = values.expires_days;
       if (values.remark?.trim()) body.remark = values.remark.trim();
       const created = await post<Invite[]>("/api/v1/admin/invite-codes", body);
-      msgApi.success(`已生成 ${created.length} 个邀请码`);
+      msgApi.success(t("msg_invites_generated", { n: created.length }));
       setGenOpen(false);
       form.resetFields();
       setPage(1);
       reload();
     } catch (e) {
-      msgApi.error(e instanceof Error ? e.message : "生成失败");
+      msgApi.error(e instanceof Error ? e.message : t("msg_invites_gen_fail"));
     }
   };
 
   const revoke = async (row: Invite) => {
     try {
       await patch(`/api/v1/admin/invite-codes/${row.id}`, { status: "revoked" });
-      msgApi.success(`已作废 ${row.code}`);
+      msgApi.success(t("msg_revoked", { code: row.code }));
       reload();
     } catch (e) {
-      msgApi.error(e instanceof Error ? e.message : "作废失败");
+      msgApi.error(e instanceof Error ? e.message : t("msg_revoke_failed"));
     }
   };
 
@@ -91,7 +93,7 @@ export default function InvitesPage() {
     <div>
       {msgHolder}
       {err && <Alert type="error" message={err} showIcon style={{ marginBottom: 12 }} />}
-      <Card size="small" title="注册设置" style={{ marginBottom: 16 }}>
+      <Card size="small" title={t("invites_signup_settings")} style={{ marginBottom: 16 }}>
         <Space>
           <Switch
             checked={settings?.invite_required ?? false}
@@ -99,14 +101,14 @@ export default function InvitesPage() {
             onChange={toggleInviteRequired}
           />
           <Typography.Text>
-            邀请注册模式：开启后，新用户注册必须填写有效邀请码（已有账号不受影响）
+            {t("invites_mode_note")}
           </Typography.Text>
         </Space>
       </Card>
 
       <Space style={{ marginBottom: 12 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setGenOpen(true)}>
-          批量生成邀请码
+          {t("invites_generate_btn")}
         </Button>
       </Space>
 
@@ -118,41 +120,41 @@ export default function InvitesPage() {
         pagination={{ current: page, pageSize: 10, total: list?.total ?? 0, onChange: setPage }}
         columns={[
           { title: "ID", dataIndex: "id", width: 60 },
-          { title: "邀请码", dataIndex: "code", render: (c: string) => <Typography.Text code copyable>{c}</Typography.Text> },
-          { title: "已用/上限", key: "uses", width: 110, render: (_, r) => `${r.used_count} / ${r.max_uses}` },
+          { title: t("col_code"), dataIndex: "code", render: (c: string) => <Typography.Text code copyable>{c}</Typography.Text> },
+          { title: t("invites_uses"), key: "uses", width: 110, render: (_, r) => `${r.used_count} / ${r.max_uses}` },
           {
-            title: "有效期至",
+            title: t("invites_valid_until"),
             dataIndex: "expires_at",
             width: 170,
-            render: (v: string | null) => (v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "永久"),
+            render: (v: string | null) => (v ? dayjs(v).format("YYYY-MM-DD HH:mm") : t("invites_forever")),
           },
           {
-            title: "状态",
+            title: t("col_status"),
             dataIndex: "status",
             width: 90,
             render: (s: string, r: Invite) => {
               const exhausted = r.used_count >= r.max_uses;
               const expired = !!r.expires_at && dayjs(r.expires_at).isBefore(dayjs());
               const tag = s === "active" ? (!expired && !exhausted ? "green" : "default") : "red";
-              const label = s !== "active" ? "已作废" : expired ? "已过期" : exhausted ? "已用尽" : "生效中";
+              const label = s !== "active" ? t("invites_revoked") : expired ? t("invites_expired") : exhausted ? t("invites_exhausted") : t("invites_in_effect");
               return <Tag color={tag}>{label}</Tag>;
             },
           },
-          { title: "备注", dataIndex: "remark", ellipsis: true, render: (v) => v ?? "—" },
+          { title: t("col_remark"), dataIndex: "remark", ellipsis: true, render: (v) => v ?? "—" },
           {
-            title: "创建时间",
+            title: t("col_created_at"),
             dataIndex: "created_at",
             width: 170,
             render: (v: string) => dayjs(v).format("YYYY-MM-DD HH:mm"),
           },
           {
-            title: "操作",
+            title: t("col_action"),
             key: "act",
             width: 90,
             render: (_, r) =>
               r.status === "active" ? (
-                <Popconfirm title={`作废 ${r.code}？`} onConfirm={() => revoke(r)}>
-                  <Button size="small" danger>作废</Button>
+                <Popconfirm title={t("confirm_revoke", { code: r.code })} onConfirm={() => revoke(r)}>
+                  <Button size="small" danger>{t("invites_revoke_btn")}</Button>
                 </Popconfirm>
               ) : null,
           },
@@ -160,27 +162,27 @@ export default function InvitesPage() {
       />
 
       <Modal
-        title="批量生成邀请码"
+        title={t("invites_generate_title")}
         open={genOpen}
         onCancel={() => setGenOpen(false)}
         onOk={() => form.submit()}
-        okText="生成"
-        cancelText="取消"
+        okText={t("invites_generate_ok")}
+        cancelText={t("cancel")}
       >
         <Form form={form} layout="vertical" onFinish={generate} initialValues={{ count: 1, max_uses: 1 }}>
           <Space size="large">
-            <Form.Item name="count" label="生成数量" rules={[{ required: true, type: "number", min: 1, max: 100 }]}>
+            <Form.Item name="count" label={t("invites_count_label")} rules={[{ required: true, type: "number", min: 1, max: 100 }]}>
               <InputNumber min={1} max={100} style={{ width: 120 }} />
             </Form.Item>
-            <Form.Item name="max_uses" label="每个可用次数" rules={[{ required: true, type: "number", min: 1, max: 10000 }]}>
+            <Form.Item name="max_uses" label={t("invites_max_uses_label")} rules={[{ required: true, type: "number", min: 1, max: 10000 }]}>
               <InputNumber min={1} max={10000} style={{ width: 120 }} />
             </Form.Item>
-            <Form.Item name="expires_days" label="有效天数（可选）">
+            <Form.Item name="expires_days" label={t("invites_days_label")}>
               <InputNumber min={1} max={365} style={{ width: 120 }} />
             </Form.Item>
           </Space>
-          <Form.Item name="remark" label="备注（可选）">
-            <Input maxLength={255} placeholder="例如：内测用户" />
+          <Form.Item name="remark" label={t("invites_remark_label")}>
+            <Input maxLength={255} placeholder={t("invites_remark_ph")} />
           </Form.Item>
         </Form>
       </Modal>

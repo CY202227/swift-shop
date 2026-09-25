@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Card, Col, Row, Statistic, Table, Typography, Empty } from "antd";
+import { Alert, Card, Col, Row, Statistic, Table, Empty } from "antd";
 import { get } from "../api";
+import { useAdminI18n } from "../i18n";
 import type { Revenue } from "../types";
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
@@ -8,6 +9,7 @@ const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
 // Lightweight inline SVG line chart (no chart lib dependency):
 // draws a revenue polyline + area fill over a 30-day window.
 function RevenueCurve({ series }: { series: { date: string; revenue_cents: number }[] }) {
+  const { t } = useAdminI18n();
   const W = 860;
   const H = 220;
   const PAD = { l: 56, r: 16, t: 16, b: 28 };
@@ -28,7 +30,7 @@ function RevenueCurve({ series }: { series: { date: string; revenue_cents: numbe
     };
   }, [series]);
 
-  if (!chart) return <Empty description="近 30 天暂无已支付订单" />;
+  if (!chart) return <Empty description={t("revenue_empty")} />;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
@@ -68,6 +70,7 @@ function RevenueCurve({ series }: { series: { date: string; revenue_cents: numbe
 export default function RevenuePage() {
   const [data, setData] = useState<Revenue | null>(null);
   const [err, setErr] = useState("");
+  const { t } = useAdminI18n();
 
   useEffect(() => {
     get<Revenue>("/api/v1/admin/stats/revenue")
@@ -84,54 +87,45 @@ export default function RevenuePage() {
         <Col span={8}>
           <Card>
             <Statistic
-              title="已实现收入（已支付订单）"
+              title={t("revenue_realized")}
               value={yuan(data.realized_cents)}
               precision={2}
             />
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              Realized revenue
-            </Typography.Text>
           </Card>
         </Col>
         <Col span={8}>
           <Card>
             <Statistic
-              title="预计收入（待支付订单）"
+              title={t("revenue_expected")}
               value={yuan(data.expected_cents)}
               precision={2}
             />
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              Expected: pending orders if paid
-            </Typography.Text>
           </Card>
         </Col>
         <Col span={8}>
           <Card>
             <Statistic
-              title="合计预估"
+              title={t("revenue_total_estimate")}
               value={yuan(data.realized_cents + data.expected_cents)}
               precision={2}
             />
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              Realized + expected
-            </Typography.Text>
           </Card>
         </Col>
       </Row>
 
-      <Card title="收入曲线（近 30 天 · 已支付）" style={{ marginBottom: 16 }}>
+      <Card title={t("revenue_chart_title")} style={{ marginBottom: 16 }}>
         <RevenueCurve series={data.series} />
       </Card>
 
-      <Card title="每日明细" size="small">
+      <Card title={t("revenue_daily_table")} size="small">
         <Table
           rowKey="date"
           size="small"
           dataSource={[...data.series].reverse()}
           pagination={{ pageSize: 10 }}
           columns={[
-            { title: "日期", dataIndex: "date", width: 140 },
-            { title: "收入", dataIndex: "revenue_cents", render: (c: number) => yuan(c) },
+            { title: t("col_date"), dataIndex: "date", width: 140 },
+            { title: t("col_revenue"), dataIndex: "revenue_cents", render: (c: number) => yuan(c) },
           ]}
         />
       </Card>

@@ -88,6 +88,10 @@ export interface Order {
   id: number;
   order_no: string;
   status: string;
+  // shipping snapshot the buyer entered at checkout
+  recipient_name?: string | null;
+  recipient_phone?: string | null;
+  address?: string | null;
   total_cents: number;
   subtotal_cents?: number;
   discount_cents?: number;

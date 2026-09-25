@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { post, saveTokens } from "../api";
+import { useAdminI18n } from "../i18n";
 import type { AuthOut, AdminUser } from "../types";
 
 export default function LoginPage({ onLogin }: { onLogin: (u: AdminUser) => void }) {
@@ -10,6 +11,7 @@ export default function LoginPage({ onLogin }: { onLogin: (u: AdminUser) => void
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const location = useLocation() as { state: { from?: string } | null };
+  const { t, lang, setLang } = useAdminI18n();
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -22,14 +24,14 @@ export default function LoginPage({ onLogin }: { onLogin: (u: AdminUser) => void
         password: String(fd.get("password")),
       });
       if (out.user.role !== "admin" && out.user.role !== "super_admin") {
-        setErr("该账号不是管理员，无法登录后台");
+        setErr(t("login_not_admin"));
         return;
       }
       saveTokens({ access: out.access_token, refresh: out.refresh_token });
       onLogin(out.user);
       navigate(location.state?.from ?? "/dashboard", { replace: true });
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "登录失败");
+      setErr(ex instanceof Error ? ex.message : t("login_failed"));
     } finally {
       setBusy(false);
     }
@@ -45,17 +47,23 @@ export default function LoginPage({ onLogin }: { onLogin: (u: AdminUser) => void
         background: "#f0f2f5",
       }}
     >
-      <Card title={<Typography.Title level={4} style={{ margin: 0 }}>管理后台登录</Typography.Title>} style={{ width: 360 }}>
+      <Card title={<Typography.Title level={4} style={{ margin: 0 }}>{t("login_title")}</Typography.Title>} style={{ width: 360 }}>
+        {/* language toggle available even before signing in */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          <Button size="small" onClick={() => setLang(lang === "zh" ? "en" : "zh")}>
+            {lang === "zh" ? "EN" : "中文"}
+          </Button>
+        </div>
         {err && <Alert type="error" message={err} showIcon style={{ marginBottom: 16 }} />}
         <Form layout="vertical" onSubmitCapture={submit}>
-          <Form.Item label="邮箱" name="email" rules={[{ required: true, message: "请输入邮箱" }]}>
+          <Form.Item label={t("login_email")} name="email" rules={[{ required: true, message: t("login_email_required") }]}>
             <Input name="email" type="email" placeholder="admin@example.com" />
           </Form.Item>
-          <Form.Item label="密码" name="password" rules={[{ required: true, message: "请输入密码" }]}>
-            <Input.Password name="password" placeholder="至少 8 位" />
+          <Form.Item label={t("login_password")} name="password" rules={[{ required: true, message: t("login_pwd_required") }]}>
+            <Input.Password name="password" placeholder={t("login_pwd_hint")} />
           </Form.Item>
           <Button type="primary" htmlType="submit" block loading={busy}>
-            登录
+            {t("login_submit")}
           </Button>
         </Form>
       </Card>

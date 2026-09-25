@@ -10,7 +10,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Switch,
   Table,
   Tag,
   Typography,
@@ -21,6 +20,7 @@ import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd";
 import { del, get, patch, post } from "../api";
 import { useAuth } from "../auth";
+import { useAdminI18n } from "../i18n";
 import { isSuperAdmin, type Product, type ProductPage } from "../types";
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
@@ -30,6 +30,8 @@ function DiscountCell({ product, onSaved }: { product: Product; onSaved: () => v
   const [val, setVal] = useState<number>(product.discount_percent);
   const [saving, setSaving] = useState(false);
   const [msgApi, msgHolder] = message.useMessage();
+  const { t } = useAdminI18n();
+
   const save = async (next: number | null) => {
     // Regular admins may only touch discount_percent (backend enforces the same rule)
     const v = Math.max(0, Math.min(100, next ?? 0));
@@ -37,10 +39,10 @@ function DiscountCell({ product, onSaved }: { product: Product; onSaved: () => v
     setSaving(true);
     try {
       await patch(`/api/v1/admin/products/${product.id}`, { discount_percent: v });
-      msgApi.success(`已更新 ${product.name} 折扣 ${v}%`);
+      msgApi.success(t("msg_discount_set", { name: product.name, v }));
       onSaved();
     } catch (e) {
-      msgApi.error(e instanceof Error ? e.message : "保存失败");
+      msgApi.error(e instanceof Error ? e.message : t("msg_save_failed"));
       setVal(product.discount_percent);
     } finally {
       setSaving(false);
@@ -63,12 +65,6 @@ function DiscountCell({ product, onSaved }: { product: Product; onSaved: () => v
     </Space>
   );
 }
-
-const STATUS_TAG: Record<string, { color: string; text: string }> = {
-  draft: { color: "default", text: "草稿" },
-  active: { color: "green", text: "在售" },
-  retired: { color: "orange", text: "已下架" },
-};
 
 interface FormValues {
   name: string;
@@ -97,6 +93,7 @@ function ProductModal({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [msgApi, msgHolder] = message.useMessage();
+  const { t } = useAdminI18n();
 
   useEffect(() => {
     if (open) {
@@ -143,11 +140,11 @@ function ProductModal({
       } else {
         await post("/api/v1/admin/products", body);
       }
-      msgApi.success(initial ? "已保存" : "已创建（草稿状态，请上架）");
+      msgApi.success(initial ? t("msg_saved") : t("msg_created"));
       onSaved();
       onClose();
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "保存失败");
+      setErr(ex instanceof Error ? ex.message : t("msg_save_failed"));
     } finally {
       setSaving(false);
     }
@@ -155,53 +152,53 @@ function ProductModal({
 
   return (
     <Modal
-      title={initial ? `编辑商品 #${initial.id}` : "新建商品"}
+      title={initial ? `${t("products_edit_title")} #${initial.id}` : t("products_new_title")}
       open={open}
       onCancel={onClose}
       onOk={() => form.submit()}
       confirmLoading={saving}
-      okText="保存"
-      cancelText="取消"
+      okText={t("products_save")}
+      cancelText={t("cancel")}
       width={560}
     >
       {msgHolder}
       {err && <Alert type="error" message={err} showIcon style={{ marginBottom: 12 }} />}
       <Form form={form} layout="vertical" onFinish={submit}>
-        <Form.Item name="name" label="商品名" rules={[{ required: true, min: 1, max: 128 }]}>
+        <Form.Item name="name" label={t("products_name_label")} rules={[{ required: true, min: 1, max: 128 }]}>
           <Input />
         </Form.Item>
         <Form.Item
           name="slug"
           label="URL Slug"
-          rules={[{ required: true, pattern: /^[a-z0-9-]+$/, message: "仅小写字母、数字、连字符" }]}
+          rules={[{ required: true, pattern: /^[a-z0-9-]+$/, message: t("products_slug_rule") }]}
         >
           <Input disabled={!!initial} placeholder="mech-keyboard-87" />
         </Form.Item>
-        <Form.Item name="description" label="描述">
+        <Form.Item name="description" label={t("col_description")}>
           <Input.TextArea rows={2} />
         </Form.Item>
         <Space size="large">
           <Form.Item
             name="price_yuan"
-            label="价格（元）"
+            label={t("products_price_label")}
             rules={[{ required: true, type: "number", min: 0.01 }]}
           >
             <InputNumber min={0.01} step={0.01} style={{ width: 140 }} />
           </Form.Item>
-          <Form.Item name="stock" label="库存" rules={[{ required: true, type: "number", min: 0 }]}>
+          <Form.Item name="stock" label={t("products_stock_label")} rules={[{ required: true, type: "number", min: 0 }]}>
             <InputNumber min={0} style={{ width: 140 }} />
           </Form.Item>
         </Space>
         <Form.Item
           name="discount_percent"
-          label="商品折扣（0-100，0 表示无折扣；与全场活动、会员折扣叠加生效）"
+          label={t("products_discount_label")}
           rules={[{ type: "number", min: 0, max: 100 }]}
         >
           <InputNumber min={0} max={100} style={{ width: 140 }} />
         </Form.Item>
       </Form>
       <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
-        图片上传（可选，最多 9 张，≤5MB；支持 jpg/png/webp/gif）
+        {t("products_upload_note")}
       </Typography.Paragraph>
       <Upload
         listType="picture-card"
@@ -215,16 +212,16 @@ function ProductModal({
                 ...prev,
                 { uid: `${Date.now()}-${file.name}`, name: file.name, status: "done", thumbUrl: url, url } as UploadFile,
               ]);
-              msgApi.success(`已上传：${file.name}`);
+              msgApi.success(t("msg_uploaded", { name: file.name }));
             })
-            .catch((e) => msgApi.error(`上传失败：${e.message}`));
+            .catch((e) => msgApi.error(t("msg_upload_failed", { msg: e.message })));
           return false; // prevent default auto-upload
         }}
         onRemove={(file) => setFileList((prev) => prev.filter((f) => f.uid !== file.uid))}
       >
         <div>
           <UploadOutlined />
-          <div style={{ marginTop: 8 }}>上传</div>
+          <div style={{ marginTop: 8 }}>{t("products_upload_btn")}</div>
         </div>
       </Upload>
       {existingImgs.length + fileList.length > 0 && (
@@ -240,7 +237,7 @@ function ProductModal({
         </Image.PreviewGroup>
       )}
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8 }}>
-        注：当前弹窗为元信息保存；如需将上传图片应用到商品，请保存后在编辑中更新 images 字段（简化演示）。
+        {t("products_images_note")}
       </Typography.Paragraph>
     </Modal>
   );
@@ -257,6 +254,7 @@ export default function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [msgApi, msgHolder] = message.useMessage();
+  const { t } = useAdminI18n();
 
   const reload = useCallback(() => {
     const q = new URLSearchParams({ page: String(page), size: "10" });
@@ -275,8 +273,15 @@ export default function ProductsPage() {
       msgApi.success(ok);
       reload();
     } catch (e) {
-      msgApi.error(e instanceof Error ? e.message : "操作失败");
+      msgApi.error(e instanceof Error ? e.message : t("msg_operate_failed"));
     }
+  };
+
+  const statusTag = (s: string): { color: string; text: string } => {
+    if (s === "draft") return { color: "default", text: t("st_draft") };
+    if (s === "active") return { color: "green", text: t("st_active") };
+    if (s === "retired") return { color: "orange", text: t("st_retired") };
+    return { color: "default", text: s };
   };
 
   return (
@@ -288,30 +293,30 @@ export default function ProductsPage() {
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="只读视图：商品的新建、编辑、上下架与删除仅超级管理员可操作；折扣由超级管理员设定。"
+          message={t("products_readonly_banner")}
         />
       )}
       <Space style={{ marginBottom: 12 }} wrap>
         <Input.Search
-          placeholder="按名称搜索"
+          placeholder={t("products_search_ph")}
           allowClear
           onSearch={(v) => { setPage(1); setSearch(v); }}
           style={{ width: 220 }}
         />
         <Select
-          placeholder="状态筛选"
+          placeholder={t("products_status_filter")}
           allowClear
           style={{ width: 140 }}
           onChange={(v) => { setPage(1); setStatusFilter(v); }}
           options={[
-            { value: "draft", label: "草稿" },
-            { value: "active", label: "在售" },
-            { value: "retired", label: "已下架" },
+            { value: "draft", label: t("st_draft") },
+            { value: "active", label: t("st_active") },
+            { value: "retired", label: t("st_retired") },
           ]}
         />
         {isSuper && (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setModalOpen(true); }}>
-            新建商品
+            {t("products_create")}
           </Button>
         )}
       </Space>
@@ -325,12 +330,12 @@ export default function ProductsPage() {
           pageSize: 10,
           total: data?.total ?? 0,
           onChange: setPage,
-          showTotal: (t) => `共 ${t} 件`,
+          showTotal: (n) => t("products_total", { n }),
         }}
         columns={[
           { title: "ID", dataIndex: "id", width: 60 },
           {
-            title: "商品",
+            title: t("col_product"),
             dataIndex: "name",
             render: (name: string, r: Product) => (
               <Space>
@@ -340,47 +345,50 @@ export default function ProductsPage() {
             ),
           },
           { title: "Slug", dataIndex: "slug", width: 130, ellipsis: true },
-          { title: "价格", dataIndex: "price_cents", width: 95, render: (c: number) => yuan(c) },
+          { title: t("col_price"), dataIndex: "price_cents", width: 95, render: (c: number) => yuan(c) },
           {
-            title: "折扣",
+            title: t("col_discount"),
             dataIndex: "discount_percent",
             width: 110,
             render: (d: number, r: Product) =>
               isSuper ? (
-                d > 0 ? <Tag color="red">{100 - d}% 折</Tag> : <Typography.Text type="secondary">—</Typography.Text>
+                d > 0 ? <Tag color="red">{t("products_off_tag", { p: 100 - d })}</Tag> : <Typography.Text type="secondary">—</Typography.Text>
               ) : (
                 <DiscountCell product={r} onSaved={reload} />
               ),
           },
-          { title: "库存", dataIndex: "stock", width: 70 },
+          { title: t("col_stock"), dataIndex: "stock", width: 70 },
           {
-            title: "状态",
+            title: t("col_status"),
             dataIndex: "status",
             width: 90,
-            render: (s: string) => <Tag color={STATUS_TAG[s]?.color}>{STATUS_TAG[s]?.text ?? s}</Tag>,
+            render: (s: string) => {
+              const tag = statusTag(s);
+              return <Tag color={tag.color}>{tag.text}</Tag>;
+            },
           },
           ...(isSuper
             ? [
                 {
-                  title: "操作",
+                  title: t("col_action"),
                   key: "actions",
                   width: 280,
                   render: (_: unknown, r: Product) => (
                     <Space size={4} wrap>
                       <Button size="small" onClick={() => { setEditing(r); setModalOpen(true); }}>
-                        编辑
+                        {t("products_edit")}
                       </Button>
                       {r.status !== "active" ? (
-                        <Button size="small" type="primary" ghost onClick={() => act(() => post(`/api/v1/admin/products/${r.id}/publish`), "已上架")}>
-                          上架
+                        <Button size="small" type="primary" ghost onClick={() => act(() => post(`/api/v1/admin/products/${r.id}/publish`), t("msg_published"))}>
+                          {t("products_publish")}
                         </Button>
                       ) : (
-                        <Button size="small" danger ghost onClick={() => act(() => post(`/api/v1/admin/products/${r.id}/unpublish`), "已下架")}>
-                          下架
+                        <Button size="small" danger ghost onClick={() => act(() => post(`/api/v1/admin/products/${r.id}/unpublish`), t("msg_unpublished"))}>
+                          {t("products_unpublish")}
                         </Button>
                       )}
-                      <Popconfirm title="确认删除该商品？" onConfirm={() => act(() => del(`/api/v1/admin/products/${r.id}`), "已删除")}>
-                        <Button size="small" danger>删除</Button>
+                      <Popconfirm title={t("confirm_delete")} onConfirm={() => act(() => del(`/api/v1/admin/products/${r.id}`), t("msg_deleted"))}>
+                        <Button size="small" danger>{t("products_delete")}</Button>
                       </Popconfirm>
                     </Space>
                   ),

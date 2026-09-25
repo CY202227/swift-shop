@@ -1,19 +1,24 @@
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Layout, Menu, Button, Space, Typography, Tag } from "antd";
-import { LogoutOutlined } from "@ant-design/icons";
+import { LogoutOutlined, ShoppingOutlined } from "@ant-design/icons";
 import type { AdminUser } from "../types";
+import { useAdminI18n } from "../i18n";
 
 const { Header, Sider, Content } = Layout;
 
-// role-gated menu: dashboard/orders/users open to both roles; the rest super-only
+// storefront URL: separate SPA in dev (5173); override for deployments
+const STORE_URL =
+  (import.meta as any).env?.VITE_STORE_URL ?? "http://127.0.0.1:5173";
+
+// role-gated menu: dashboard/orders/users/products open to both roles; rest super-only
 const ALL_MENU = [
-  { key: "dashboard", label: "仪表盘", roles: ["admin", "super_admin"] },
-  { key: "orders", label: "订单 / 导出", roles: ["admin", "super_admin"] },
-  { key: "users", label: "用户管理", roles: ["admin", "super_admin"] },
-  { key: "products", label: "商品管理", roles: ["admin", "super_admin"] },
-  { key: "promotions", label: "活动管理", roles: ["super_admin"] },
-  { key: "invites", label: "邀请码 / 注册设置", roles: ["super_admin"] },
-  { key: "revenue", label: "收入统计", roles: ["super_admin"] },
+  { key: "dashboard", labelKey: "menu_dashboard", roles: ["admin", "super_admin"] },
+  { key: "orders", labelKey: "menu_orders", roles: ["admin", "super_admin"] },
+  { key: "users", labelKey: "menu_users", roles: ["admin", "super_admin"] },
+  { key: "products", labelKey: "menu_products", roles: ["admin", "super_admin"] },
+  { key: "promotions", labelKey: "menu_promotions", roles: ["super_admin"] },
+  { key: "invites", labelKey: "menu_invites", roles: ["super_admin"] },
+  { key: "revenue", labelKey: "menu_revenue", roles: ["super_admin"] },
 ];
 
 export default function AdminLayout({ user, onLogout }: { user: object; onLogout: () => void }) {
@@ -21,6 +26,7 @@ export default function AdminLayout({ user, onLogout }: { user: object; onLogout
   const location = useLocation();
   const u = user as AdminUser;
   const isSuper = u.role === "super_admin";
+  const { lang, setLang, t } = useAdminI18n();
   const menu = ALL_MENU.filter((m) => m.roles.includes(u.role));
   const selected = location.pathname.split("/")[1] || "dashboard";
 
@@ -33,13 +39,13 @@ export default function AdminLayout({ user, onLogout }: { user: object; onLogout
     <Layout style={{ minHeight: "100vh" }}>
       <Sider theme="dark" width={220}>
         <div style={{ color: "#fff", padding: "18px 16px", fontSize: 17, fontWeight: 700 }}>
-          🃏 PTCG Shop 后台
+          {t("brand")}
         </div>
         <Menu
           theme="dark"
           mode="inline"
           selectedKeys={[selected]}
-          items={menu.map(({ key, label }) => ({ key, label }))}
+          items={menu.map(({ key, labelKey }) => ({ key, label: t(labelKey) }))}
           onClick={({ key }) => navigate(`/${key}`)}
         />
       </Sider>
@@ -55,14 +61,28 @@ export default function AdminLayout({ user, onLogout }: { user: object; onLogout
           }}
         >
           <Space>
+            <Button
+              icon={<ShoppingOutlined />}
+              href={STORE_URL}
+              target="_blank"
+              title="Storefront"
+            >
+              {t("visit_store")}
+            </Button>
+            <Button
+              onClick={() => setLang(lang === "zh" ? "en" : "zh")}
+              title={lang === "zh" ? "Switch to English" : "切换到中文"}
+            >
+              {t("lang_toggle")}
+            </Button>
             <Typography.Text>
               {u.username}
             </Typography.Text>
             <Tag color={isSuper ? "gold" : "blue"}>
-              {isSuper ? "超级管理员" : "管理员"}
+              {isSuper ? t("role_super") : t("role_admin")}
             </Tag>
             <Button icon={<LogoutOutlined />} onClick={onLogout}>
-              退出登录
+              {t("logout")}
             </Button>
           </Space>
         </Header>

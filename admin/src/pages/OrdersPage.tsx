@@ -4,15 +4,9 @@ import { DownloadOutlined } from "@ant-design/icons";
 import { downloadCsv, get } from "../api";
 import type { Order, OrderPage } from "../types";
 import dayjs from "dayjs";
+import { useAdminI18n } from "../i18n";
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
-
-const STATUS: Record<string, { color: string; text: string }> = {
-  pending_payment: { color: "gold", text: "待支付" },
-  paid: { color: "green", text: "已支付" },
-  cancelled: { color: "default", text: "已取消" },
-  completed: { color: "blue", text: "已完成" },
-};
 
 export default function OrdersPage() {
   const [data, setData] = useState<OrderPage | null>(null);
@@ -22,6 +16,14 @@ export default function OrdersPage() {
   const [userFilter, setUserFilter] = useState("");
   const [exporting, setExporting] = useState(false);
   const [msgApi, msgHolder] = message.useMessage();
+  const { t } = useAdminI18n();
+
+  const STATUS: Record<string, { color: string; key: string }> = {
+    pending_payment: { color: "gold", key: "status_pending_payment" },
+    paid: { color: "green", key: "status_paid" },
+    cancelled: { color: "default", key: "status_cancelled" },
+    completed: { color: "blue", key: "status_completed" },
+  };
 
   const qs = useCallback((p: number) => {
     const q = new URLSearchParams({ page: String(p), size: "10" });
@@ -46,9 +48,9 @@ export default function OrdersPage() {
       if (userFilter.trim()) q.set("user_id", userFilter.trim());
       const stamp = dayjs().format("YYYYMMDD");
       await downloadCsv(`/api/v1/admin/orders/export?${q}`, `orders_${stamp}.csv`);
-      msgApi.success("CSV 已导出（此次导出已记录审计日志）");
+      msgApi.success(t("orders_export_done"));
     } catch (e) {
-      msgApi.error(e instanceof Error ? e.message : "导出失败");
+      msgApi.error(e instanceof Error ? e.message : t("orders_export_fail"));
     } finally {
       setExporting(false);
     }
@@ -60,73 +62,94 @@ export default function OrdersPage() {
       {err && <Alert type="error" message={err} showIcon style={{ marginBottom: 12 }} />}
       <Space style={{ marginBottom: 12 }} wrap>
         <Select
-          placeholder="状态筛选"
+          placeholder={t("orders_filter_status")}
           allowClear
-          style={{ width: 130 }}
+          style={{ width: 140 }}
           onChange={(v) => { setPage(1); setStatusFilter(v); }}
-          options={Object.entries(STATUS).map(([value, s]) => ({ value, label: s.text }))}
+          options={Object.entries(STATUS).map(([value, s]) => ({ value, label: t(s.key) }))}
         />
         <Input.Search
-          placeholder="按用户 ID 筛选"
+          placeholder={t("orders_filter_user")}
           allowClear
           onSearch={(v) => { setPage(1); setUserFilter(v); }}
           style={{ width: 180 }}
         />
         <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={exportCsv}>
-          导出 CSV（购买记录）
+          {t("orders_export")}
         </Button>
       </Space>
       <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
-        导出内容包括订单号、用户邮箱、状态、商品明细、金额与支付时间；每次导出都会写入审计日志。
+        {t("orders_export_note")}
       </Typography.Paragraph>
       <Table<Order>
         rowKey="id"
         size="small"
         dataSource={data?.items ?? []}
         loading={!data}
-        pagination={{ current: page, pageSize: 10, total: data?.total ?? 0, onChange: setPage, showTotal: (t) => `共 ${t} 单` }}
+        pagination={{ current: page, pageSize: 10, total: data?.total ?? 0, onChange: setPage, showTotal: (n) => t("total_n", { n }) }}
         expandable={{
           expandedRowRender: (r) => (
-            <table style={{ width: "100%", fontSize: 13 }}>
-              <thead>
-                <tr style={{ textAlign: "left", color: "#888" }}>
-                  <th>商品</th><th>单价</th><th>数量</th><th>小计</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.items.map((i) => (
-                  <tr key={i.product_id}>
-                    <td>{i.title}</td>
-                    <td>{yuan(i.unit_price_cents)}</td>
-                    <td>×{i.qty}</td>
-                    <td>{yuan(i.unit_price_cents * i.qty)}</td>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* shipping snapshot — what fulfilment actually needs */}
+              <div style={{ background: "#fafafa", border: "1px solid #f0f0f0", borderRadius: 8, padding: "10px 14px", fontSize: 13 }}>
+                <Typography.Text strong>{t("col_recipient")}:</Typography.Text> {r.recipient_name || "—"}
+                <span style={{ margin: "0 14px" }} />
+                <Typography.Text strong>{t("col_phone")}:</Typography.Text> {r.recipient_phone || "—"}
+                <div style={{ marginTop: 4 }}>
+                  <Typography.Text strong>{t("col_address")}:</Typography.Text> {r.address || "—"}
+                </div>
+              </div>
+              <table style={{ width: "100%", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ textAlign: "left", color: "#888" }}>
+                    <th>{t("detail_product")}</th><th>{t("detail_unit_price")}</th><th>{t("detail_qty")}</th><th>{t("detail_line_total")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {r.items.map((i) => (
+                    <tr key={i.product_id}>
+                      <td>{i.title}</td>
+                      <td>{yuan(i.unit_price_cents)}</td>
+                      <td>×{i.qty}</td>
+                      {/* snapshot line total honours buy-N-get-1; fallback for older rows */}
+                      <td>{yuan(i.line_total_cents || i.unit_price_cents * i.qty)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ),
         }}
         columns={[
-          { title: "订单号", dataIndex: "order_no", render: (v: string) => <Typography.Text code>{v}</Typography.Text> },
-          { title: "用户", key: "user", render: (_, r) => r.user_email ?? `#${r.user_id ?? "?"}` },
-          { title: "金额", dataIndex: "total_cents", width: 100, render: (c: number) => yuan(c) },
+          { title: t("col_order_no"), dataIndex: "order_no", render: (v: string) => <Typography.Text code>{v}</Typography.Text> },
+          { title: t("col_user"), key: "user", render: (_, r) => r.user_email ?? `#${r.user_id ?? "?"}` },
           {
-            title: "状态",
+            title: t("col_recipient"),
+            dataIndex: "recipient_name",
+            width: 120,
+            render: (v: string) => v ? <Typography.Text>{v}</Typography.Text> : <Typography.Text type="secondary">—</Typography.Text>,
+          },
+          { title: t("col_phone"), dataIndex: "recipient_phone", width: 130,
+            render: (v: string) => v || "—" },
+          {
+            title: t("col_address"),
+            dataIndex: "address",
+            width: 200,
+            ellipsis: true,
+            render: (v: string) => v || "—",
+          },
+          { title: t("col_amount"), dataIndex: "total_cents", width: 100, render: (c: number) => yuan(c) },
+          {
+            title: t("col_status"),
             dataIndex: "status",
-            width: 90,
-            render: (s: string) => <Tag color={STATUS[s]?.color}>{STATUS[s]?.text ?? s}</Tag>,
+            width: 100,
+            render: (s: string) => <Tag color={STATUS[s]?.color}>{t(STATUS[s]?.key ?? "") ?? s}</Tag>,
           },
           {
-            title: "支付时间",
+            title: t("col_paid_at"),
             dataIndex: "paid_at",
-            width: 160,
+            width: 140,
             render: (v: string | null) => (v ? dayjs(v).format("MM-DD HH:mm") : "—"),
-          },
-          {
-            title: "创建时间",
-            dataIndex: "created_at",
-            width: 160,
-            render: (v: string) => dayjs(v).format("MM-DD HH:mm"),
           },
         ]}
       />
