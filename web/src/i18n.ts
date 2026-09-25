@@ -19,6 +19,8 @@ const zh: Dict = {
   nav_login: "登录",
   nav_register: "注册",
   nav_logout: "退出",
+  nav_admin: "管理后台",
+  nav_admin_hint: "在新标签页打开管理后台（仅管理员可见）",
   // hero
   hero_title: "精选好物，即刻拥有",
   hero_sub: "注册即购 · 邮箱验证 · 模拟支付全流程演示",
@@ -129,6 +131,8 @@ const en: Dict = {
   nav_login: "Sign in",
   nav_register: "Sign up",
   nav_logout: "Sign out",
+  nav_admin: "Admin Panel",
+  nav_admin_hint: "Open the admin backoffice in a new tab (admins only)",
   hero_title: "Great finds, instantly yours",
   hero_sub: "Register & buy · Email verification · Full mock-payment demo",
   add_to_cart: "Add to cart",

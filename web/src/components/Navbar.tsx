@@ -2,6 +2,11 @@ import { Link } from "react-router-dom";
 import { useI18n } from "../i18n";
 import type { PromotionBrief, User } from "../types";
 
+// Admin backoffice runs on a separate SPA/dev server (5174 in dev);
+// override via env for other deployments, e.g. VITE_ADMIN_URL=https://...
+const ADMIN_URL =
+  (import.meta as any).env?.VITE_ADMIN_URL ?? "http://127.0.0.1:5174";
+
 export default function Navbar({
   user,
   onLogout,
@@ -36,6 +41,15 @@ export default function Navbar({
             <>
               <Link to="/cart">{t("nav_cart")}</Link>
               <Link to="/orders">{t("nav_orders")}</Link>
+              {user.role === "admin" || user.role === "super_admin" ? (
+                <a
+                  href={ADMIN_URL}
+                  className="nav-admin-link"
+                  title={t("nav_admin_hint")}
+                >
+                  {t("nav_admin")}
+                </a>
+              ) : null}
               <Link to="/profile" className="nav-user">
                 {user.username}
               </Link>
