@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Spin } from "antd";
 import { get } from "./api";
-import { clearTokens, loadTokens } from "./api";
+import { clearTokens, loadTokens, saveTokens } from "./api";
 import { AuthCtx } from "./auth";
 import type { AdminUser } from "./types";
 import AdminGuard from "./components/AdminGuard";
@@ -23,6 +23,26 @@ export default function App() {
 
   // Session bootstrap: validate token + role once on load
   useEffect(() => {
+    // Token handoff from the storefront SPA: the web app links here with
+    // #handoff=<base64> when an admin clicks the backoffice entry. Consume
+    // immediately and wipe the hash so tokens never linger in the address
+    // bar or browser history.
+    const consumeHandoff = () => {
+      const m = location.hash.match(/#handoff=([^&]+)/);
+      if (!m) return;
+      try {
+        // URL-safe base64 of JSON {"a": access, "r": refresh}
+        const json = decodeURIComponent(escape(atob(m[1])));
+        const parsed = JSON.parse(json);
+        if (parsed.a && parsed.r) {
+          saveTokens({ access: parsed.a, refresh: parsed.r });
+        }
+      } catch {
+        // malformed payload — ignore, fall through to login page
+      }
+      navigate(location.pathname, { replace: true });
+    };
+    consumeHandoff();
     const { access } = loadTokens();
     if (!access) {
       setUser(null);

@@ -1,11 +1,24 @@
 import { Link } from "react-router-dom";
 import { useI18n } from "../i18n";
+import { loadTokens } from "../auth";
 import type { PromotionBrief, User } from "../types";
 
 // Admin backoffice runs on a separate SPA/dev server (5174 in dev);
 // override via env for other deployments, e.g. VITE_ADMIN_URL=https://...
 const ADMIN_URL =
   (import.meta as any).env?.VITE_ADMIN_URL ?? "http://127.0.0.1:5174";
+
+// Build a one-shot token handoff URL: current JWT pair is btoa'd into the
+// fragment. The admin SPA consumes it on boot and wipes the hash, so the
+// tokens never sit in history. Rebuilt per click, never cached.
+function adminHandoffUrl(): string {
+  const { access, refresh } = loadTokens();
+  if (!access || !refresh) return ADMIN_URL;
+  const payload = btoa(
+    unescape(encodeURIComponent(JSON.stringify({ a: access, r: refresh })))
+  );
+  return `${ADMIN_URL}/#handoff=${payload}`;
+}
 
 export default function Navbar({
   user,
@@ -43,7 +56,7 @@ export default function Navbar({
               <Link to="/orders">{t("nav_orders")}</Link>
               {user.role === "admin" || user.role === "super_admin" ? (
                 <a
-                  href={ADMIN_URL}
+                  href={adminHandoffUrl()}
                   className="nav-admin-link"
                   title={t("nav_admin_hint")}
                 >
