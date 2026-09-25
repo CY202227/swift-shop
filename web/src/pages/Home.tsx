@@ -9,7 +9,7 @@ import type { ProductPage } from "../types";
 export default function Home() {
   const [data, setData] = useState<ProductPage | null>(null);
   const [err, setErr] = useState("");
-  const { user } = useContext(AuthContext);
+  const { user, openCart } = useContext(AuthContext);
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -26,7 +26,7 @@ export default function Home() {
     }
     try {
       await post("/api/v1/cart", { product_id: productId, qty: 1 });
-      navigate("/cart");
+      openCart?.(); // slide the drawer out instead of leaving the catalog
     } catch (e) {
       setErr(e instanceof ApiError ? e.detail : t("err_add_cart"));
     }

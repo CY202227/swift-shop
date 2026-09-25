@@ -11,7 +11,7 @@ export default function ProductDetail() {
   const [p, setP] = useState<Product | null>(null);
   const [qty, setQty] = useState(1);
   const [msg, setMsg] = useState("");
-  const { user } = useContext(AuthContext);
+  const { user, openCart } = useContext(AuthContext);
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -28,7 +28,7 @@ export default function ProductDetail() {
     }
     try {
       await post("/api/v1/cart", { product_id: p!.id, qty });
-      navigate("/cart");
+      openCart?.(); // stay on the product page, show the drawer
     } catch (e) {
       setMsg(e instanceof ApiError ? e.detail : t("err_add_cart"));
     }

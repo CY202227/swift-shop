@@ -62,6 +62,10 @@ async def create_order(body: OrderCreateIn, user: CurrentUser, db: DbDep) -> Ord
         subtotal_cents=subtotal, discount_cents=user_disc,
         promotion_id=promotion.id if promotion else None,
         promotion_name=promotion.name if promotion else None,
+        # shipping snapshot from the checkout form; stored on the order
+        recipient_name=body.recipient_name.strip(),
+        recipient_phone=body.recipient_phone.strip(),
+        address=body.address.strip(),
     )
     db.add(order)
     await db.flush()

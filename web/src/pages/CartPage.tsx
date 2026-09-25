@@ -8,6 +8,12 @@ import type { Cart } from "../types";
 export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [msg, setMsg] = useState("");
+  // shipping form state (checkout step 2)
+  const [shipOpen, setShipOpen] = useState(false);
+  const [recipient, setRecipient] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [shipping, setShipping] = useState(false);
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -35,12 +41,34 @@ export default function CartPage() {
     }
   };
 
+  // step 1: open the shipping form for validation before creating the order
+  const startCheckout = () => {
+    if (!recipient.trim() || !phone.trim() || !address.trim()) {
+      setShipOpen(true);
+      setMsg(t("err_shipping_required"));
+      return;
+    }
+    setShipOpen(true);
+  };
+
+  // step 2: submit the order with the shipping snapshot
   const checkout = async () => {
+    if (!recipient.trim() || !phone.trim() || !address.trim()) {
+      setMsg(t("err_shipping_required"));
+      return;
+    }
+    setShipping(true);
+    setMsg("");
     try {
-      const order = await post("/api/v1/orders", {});
+      const order = await post("/api/v1/orders", {
+        recipient_name: recipient.trim(),
+        recipient_phone: phone.trim(),
+        address: address.trim(),
+      });
       navigate("/orders", { state: { newOrder: order } });
     } catch (e) {
       setMsg(e instanceof ApiError ? e.detail : t("err_checkout"));
+      setShipping(false);
     }
   };
 
@@ -115,6 +143,32 @@ export default function CartPage() {
               ))}
             </tbody>
           </table>
+
+          {/* shipping info form — required before the order can be created */}
+          <div className="ship-box">
+            <div className="ship-head" onClick={() => setShipOpen(!shipOpen)}>
+              <b>{t("ship_title")}</b>
+              <span className="ship-toggle">{shipOpen ? "−" : "+"}</span>
+            </div>
+            {shipOpen && (
+              <div className="ship-form">
+                <label>
+                  <span>{t("ship_name")}</span>
+                  <input value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder={t("ship_name_ph")} maxLength={64} />
+                </label>
+                <label>
+                  <span>{t("ship_phone")}</span>
+                  <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("ship_phone_ph")} maxLength={32} />
+                </label>
+                <label>
+                  <span>{t("ship_address")}</span>
+                  <textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder={t("ship_address_ph")} maxLength={255} rows={2} />
+                </label>
+                <div className="ship-note">{t("ship_note")}</div>
+              </div>
+            )}
+          </div>
+
           <div className="cart-foot">
             <div className="cart-summary">
               <span>
@@ -133,8 +187,8 @@ export default function CartPage() {
                 </div>
               )}
             </div>
-            <button className="btn btn-primary" onClick={checkout}>
-              {t("checkout")}
+            <button className="btn btn-primary" disabled={shipping} onClick={shipOpen ? checkout : startCheckout}>
+              {shipping ? t("shipping_busy") : t("checkout")}
             </button>
           </div>
         </>

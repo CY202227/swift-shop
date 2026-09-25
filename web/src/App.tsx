@@ -5,6 +5,7 @@ import { get } from "./api";
 import { I18nContext, detectLang, saveLang, translate, type Lang } from "./i18n";
 import type { ShopSettings, User } from "./types";
 import Navbar from "./components/Navbar";
+import CartDrawer from "./components/CartDrawer";
 import Home from "./pages/Home";
 import ProductDetail from "./pages/ProductDetail";
 import CartPage from "./pages/CartPage";
@@ -21,6 +22,7 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [lang, setLangState] = useState<Lang>(() => detectLang());
   const [shop, setShop] = useState<ShopSettings | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
 
   // Restore session on load if a token exists
@@ -57,6 +59,10 @@ export default function App() {
     [lang]
   );
 
+  // open the cart drawer from anywhere (add-to-cart, navbar badge, ...)
+  const openCart = useCallback(() => setDrawerOpen(true), []);
+  const closeCart = useCallback(() => setDrawerOpen(false), []);
+
   const logout = useCallback(async () => {
     const { refresh } = loadTokens();
     try {
@@ -80,9 +86,9 @@ export default function App() {
 
   return (
     <I18nContext.Provider value={{ lang, setLang, t }}>
-      <AuthContext.Provider value={{ user, setUser }}>
+      <AuthContext.Provider value={{ user, setUser, openCart }}>
         <div className="app-shell">
-          <Navbar user={user} onLogout={logout} shopName={shop?.shop_name} promotion={shop?.promotion ?? null} />
+          <Navbar user={user} onLogout={logout} shopName={shop?.shop_name} promotion={shop?.promotion ?? null} onOpenCart={openCart} />
           <main className="container">
             <Routes>
               <Route path="/" element={<Home />} />
@@ -115,6 +121,8 @@ export default function App() {
           <footer className="footer">
             {shop?.shop_name ?? "PTCG Shop"} · FastAPI + React · {t("footer_text")}
           </footer>
+          {/* global cart drawer: slide-over from the right */}
+          <CartDrawer open={drawerOpen} onClose={closeCart} />
         </div>
       </AuthContext.Provider>
     </I18nContext.Provider>

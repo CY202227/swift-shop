@@ -89,12 +89,19 @@ check("cart has item", len(items) == 1, str(cart)[:120])
 #   29900 -10%-> 26910 -10%-> 24219 effective unit
 check("cart unit effective 242.19", items and items[0].get("effective_unit_cents") == 24219,
       str(items[0] if items else cart)[:100])
-# ordering: create (body must exist; note is the only field)
-s, order = call("POST", "/orders", USR, {"note": "integration-test"})
+# ordering: create — shipping snapshot is required at checkout now
+s, order = call("POST", "/orders", USR, {
+    "note": "integration-test",
+    "recipient_name": "Ash Ketchum",
+    "recipient_phone": "13800138000",
+    "address": "No.1 Palette Town, Kanto",
+})
 if s not in (200, 201):
     check("order created", False, f"{s} {str(order)[:80]}")
 else:
     check("order created", True)
+    check("shipping snapshot saved", order.get("recipient_name") == "Ash Ketchum" and order.get("recipient_phone") == "13800138000",
+          str({k: order.get(k) for k in ('recipient_name', 'recipient_phone', 'address')})[:100])
     # floor: 24219 * 5 // 100 = 1210 member discount; total = 24219 - 1210 = 23009
     check("order subtotal 242.19", order.get("subtotal_cents") == 24219, str(order.get("subtotal_cents")))
     check("member discount 12.10", order.get("discount_cents") == 1210, str(order.get("discount_cents")))
@@ -122,10 +129,9 @@ else:
             except urllib.error.HTTPError as e2:
                 s4, ack = e2.code, {}
             check("webhook accepted", s4 == 200 and ack.get("received"), f"{s4} {str(ack)[:60]}")
-        # order should now be paid
-        s5, mine = call("GET", "/orders", USR)
-        just = next((o for o in mine.get("items", []) if o.get("id") == oid), {})
-        check("order paid end-to-end", just.get("status") == "paid", str(just)[:100])
+        # order should now be paid — fetch by id (list page 1 may not contain it)
+        s5, just = call("GET", f"/orders/{oid}", USR)
+        check("order paid end-to-end", s5 == 200 and just.get("status") == "paid", f"{s5} {str(just)[:80]}")
 
 print("== 4. Admin views the order + revenue ==")
 s, rev = call("GET", "/admin/stats/revenue", SUP)

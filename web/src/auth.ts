@@ -26,6 +26,8 @@ export function clearTokens() {
 export interface AuthState {
   user: User | null;
   setUser: (u: User | null) => void;
+  // open the global cart drawer (provided by App)
+  openCart?: () => void;
 }
 
 export const AuthContext = createContext<AuthState>({

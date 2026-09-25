@@ -25,11 +25,13 @@ export default function Navbar({
   onLogout,
   shopName,
   promotion,
+  onOpenCart,
 }: {
   user: User | null;
   onLogout: () => void;
   shopName?: string;
   promotion?: PromotionBrief | null;
+  onOpenCart?: () => void;
 }) {
   const { lang, setLang, t } = useI18n();
 
@@ -53,6 +55,13 @@ export default function Navbar({
           {user ? (
             <>
               <Link to="/cart">{t("nav_cart")}</Link>
+              <button
+                className="btn-link nav-cart-btn"
+                onClick={() => onOpenCart?.()}
+                title={t("drawer_open_hint")}
+              >
+                🛒+ {t("drawer_quick")}
+              </button>
               <Link to="/orders">{t("nav_orders")}</Link>
               {user.role === "admin" || user.role === "super_admin" ? (
                 <a

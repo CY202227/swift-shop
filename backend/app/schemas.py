@@ -149,6 +149,10 @@ class CartOut(ORMModel):
 class OrderCreateIn(ORMModel):
     # items chosen server-side from the user's cart; client totals are ignored
     note: str | None = Field(default=None, max_length=255)
+    # shipping info snapshot written onto the order for fulfilment
+    recipient_name: str = Field(min_length=1, max_length=64)
+    recipient_phone: str = Field(min_length=5, max_length=32)
+    address: str = Field(min_length=5, max_length=255)
 
 
 class OrderItemOut(ORMModel):
@@ -164,6 +168,13 @@ class OrderOut(ORMModel):
     id: int
     order_no: str
     status: str
+    # shipping snapshot for fulfilment (legacy rows may hold NULL before backfill)
+    recipient_name: str | None = ""
+    recipient_phone: str | None = ""
+    address: str | None = ""
+    # buyer info (populated by admin listing; blank for buyer's own view to
+    # avoid leaking — buyer already knows their own email)
+    user_email: str | None = None
     # money snapshots so storefronts can render the discount breakdown
     subtotal_cents: int = 0
     discount_cents: int = 0
