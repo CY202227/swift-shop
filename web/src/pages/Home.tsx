@@ -53,7 +53,7 @@ export default function Home() {
               <Link to={`/product/${p.slug}`}>
                 <div className="product-thumb">
                   {p.images && p.images.length > 0 ? (
-                    <img src={p.images[0]} alt={p.name} />
+                    <img src={p.images[0]} alt={p.name} loading="lazy" decoding="async" />
                   ) : (
                     <span>{p.name.slice(0, 1)}</span>
                   )}

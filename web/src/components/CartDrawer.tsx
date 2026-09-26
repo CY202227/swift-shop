@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { removeItem, setItemQty, useCart } from "../cartStore";
+import { removeItem, setItemQty, suppressCartEmitDuring, useCart } from "../cartStore";
 import { closeDrawer, useDrawerOpen } from "../uiStore";
 import { useI18n } from "../i18n";
 import { yuan } from "../format";
-import type { CartItem } from "../types";
 
 // Right-side slide-over drawer so shoppers see what they just added
 // without leaving the catalog. Open/close state lives in uiStore so
@@ -14,7 +13,12 @@ import type { CartItem } from "../types";
 export default function CartDrawer() {
   const open = useDrawerOpen();
   const cart = useCart();
-  const [pending, setPending] = useState<Set<number>>(new Set());
+  // Per-item in-flight bookkeeping now lives in a ref: pending used to be
+  // state, so EVERY +/-/remove click re-rendered the whole drawer (all item
+  // rows + totals) twice. The DOM never reads pending during render — the
+  // buttons' disabled state comes from qty/stock and the optimistic cart
+  // update already re-renders the row — so a ref loses nothing.
+  const pending = useRef<Set<number>>(new Set());
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -30,18 +34,46 @@ export default function CartDrawer() {
     };
   }, [open]);
 
+  // Mount gate: the drawer's item DOM is heavy (rows, thumbs, totals). New
+  // mounts wait until the slide finishes so the compositor keeps its frames;
+  // once mounted the DOM stays mounted forever — later opens mount nothing
+  // and zero style/layout work happens during their slide.
+  const [itemsReady, setItemsReady] = useState(false); // never reset
+  const itemsMountedRef = useRef(false);
+  const prevOpenRef = useRef(false);
+  useLayoutEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!wasOpen && !open) return; // initial mount, no transition — no-op
+    // both slides get the same main-thread protection: in-flight cart
+    // write-backs stay hidden until the drawer finishes moving
+    suppressCartEmitDuring(reduceMotion ? 0 : open ? 320 : 260);
+    if (!open || itemsMountedRef.current) return;
+    const timer = window.setTimeout(() => {
+      itemsMountedRef.current = true;
+      // deliver any writes the slide window held back together with the
+      // skeleton->rows swap: one batched render, not two stacked ones
+      suppressCartEmitDuring(0);
+      setItemsReady(true);
+    }, reduceMotion ? 0 : 320); // past the 260ms slide window
+    return () => window.clearTimeout(timer); // quick close re-arms the gate
+  }, [open]);
+
   const mark = (id: number, on: boolean) => {
-    setPending((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(id);
-      else next.delete(id);
-      return next;
-    });
+    if (on) pending.current.add(id);
+    else pending.current.delete(id);
+    // No setState here: pending never feeds the DOM (button disabled state
+    // derives from qty/stock and the optimistic cart update already
+    // re-renders), so flipping it must not re-render all drawer rows.
   };
 
   // same-item double clicks are gated; different items run in parallel
   const run = async (id: number, fn: () => Promise<unknown>) => {
-    if (pending.has(id)) return;
+    if (pending.current.has(id)) return;
+    // a real interaction beats the open-slide suppression window: the
+    // optimistic update below must paint immediately, not after the slide
+    suppressCartEmitDuring(0);
     mark(id, true);
     try {
       await fn();
@@ -78,6 +110,10 @@ export default function CartDrawer() {
         {cart === null ? (
           // cold cache (rare) — brief hint instead of a wrong "empty" flash
           <div className="drawer-empty">{t("loading")}</div>
+        ) : !itemsReady && items.length > 0 ? (
+          // first open, mid-slide: skeleton only. One cheap div instead of
+          // the full row list keeps the slide window free of style/layout.
+          <div className="drawer-empty drawer-skeleton">{t("loading")}</div>
         ) : items.length === 0 ? (
           <div className="drawer-empty">{t("cart_empty")}</div>
         ) : (
@@ -87,7 +123,7 @@ export default function CartDrawer() {
                 <div key={it.id} className="drawer-item">
                   <div className="drawer-item-thumb">
                     {it.images && it.images.length > 0 ? (
-                      <img src={it.images[0]} alt={it.name} />
+                      <img src={it.images[0]} alt={it.name} loading="lazy" decoding="async" />
                     ) : (
                       <span>{it.name.slice(0, 1)}</span>
                     )}

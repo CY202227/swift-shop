@@ -12,7 +12,7 @@ from datetime import timedelta
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
-from app.core.deps import AdminUser, DbDep, SuperAdminUser
+from app.core.deps import DbDep, SuperAdminUser
 from app.core.timeutil import utcnow
 from app.models import InviteCode
 from app.schemas import InviteCreateIn, InviteOut, InvitePageOut, InviteRevokeIn, SettingsOut, SettingsPatchIn
@@ -55,8 +55,13 @@ async def list_invites(db: DbDep, sup: SuperAdminUser, page: int = 1, size: int 
 
 
 @router.post("/invite-codes", response_model=list[InviteOut], status_code=status.HTTP_201_CREATED)
-async def create_invites(body: InviteCreateIn, db: DbDep, admin: AdminUser) -> list[InviteOut]:
-    """Batch generation with per-code max uses / expiry (days) / remark."""
+async def create_invites(body: InviteCreateIn, db: DbDep, sup: SuperAdminUser) -> list[InviteOut]:
+    """Batch generation with per-code max uses / expiry (days) / remark.
+
+    Note: sup (not admin) -- module docstring says invite minting is
+    super_admin domain, and the body below already references sup.id;
+    an AdminUser param here previously made every POST a 500 (NameError).
+    """
     created: list[InviteCode] = []
     for _ in range(body.count):
         code = _gen_code()

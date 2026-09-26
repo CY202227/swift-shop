@@ -48,13 +48,15 @@ async def patch_user(user_id: int, body: UserPatchIn, db: DbDep, admin: AdminUse
         if admin.role != "super_admin":
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Super admin only: role assignment / banning")
         # super admin cannot demote themselves either (handled above via own-id check)
-        if data.get("role") == "super_admin" and u.role != "super_admin":
-            # promoting someone to super_admin while there is already one is fine;
-            # but never allow demoting the last remaining super admin
-            supers = await db.scalar(
+        # never demote the last remaining super admin; promotions are fine.
+        # (also covers self-demotion to "admin", which the own-id guard above
+        # does not block). Disabling does not need a guard: only a super admin
+        # reaches this branch, and disabling yourself is blocked up top.
+        if u.role == "super_admin" and data.get("role", u.role) != "super_admin":
+            others = await db.scalar(
                 select(func.count()).select_from(User).where(User.role == "super_admin", User.id != u.id)
             )
-            if body.role != "super_admin" and supers == 0 and u.role == "super_admin":
+            if not others:
                 raise HTTPException(status.HTTP_409_CONFLICT, detail="Cannot demote the last super admin")
 
     for k, v in data.items():

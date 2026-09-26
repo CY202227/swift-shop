@@ -617,14 +617,22 @@ main.container {
 .cart-drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 92vw);
   background: #ffffff; box-shadow: -8px 0 30px rgba(0,0,0,0.18);
-  transform: translateX(102%); transition: transform 0.26s ease; z-index: 95;
+  transform: translateX(102%); transition: transform 0.26s cubic-bezier(0.22, 0.61, 0.36, 1); z-index: 95;
   display: flex; flex-direction: column;
   will-change: transform; /* own GPU layer for the whole slide: no repaint
-                             of the page below, no jank even when the main
-                             thread is busy */
+                            of the page below, no jank even when the main
+                            thread is busy */
   contain: layout paint; /* drawer internals can't thrash page layout */
 }
 .cart-drawer.open { transform: translateX(0); }
+
+/* Honor the OS "reduce motion" setting: drawers snap instead of sliding. */
+@media (prefers-reduced-motion: reduce) {
+  .cart-drawer,
+  .drawer-backdrop {
+    transition: none;
+  }
+}
 
 .drawer-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -642,6 +650,28 @@ main.container {
 .drawer-close:hover { background: #f3f4f6; color: #333; }
 
 .drawer-empty { padding: 40px 16px; text-align: center; color: #9ca3af; }
+
+/* first-open placeholder shown while the slide plays; real rows mount
+   right after the animation so the compositor keeps its frames. The pulse
+   animates OPACITY (compositor-only, zero repaint) — a background-position
+   shimmer would re-raster the drawer layer every frame. */
+.drawer-skeleton { position: relative; height: 120px; padding: 0; overflow: hidden; text-indent: -9999px; }
+.drawer-skeleton::before,
+.drawer-skeleton::after {
+  content: ""; position: absolute; left: 16px; right: 16px; height: 44px;
+  top: 24px; border-radius: 8px; background: #f0f1f5;
+}
+.drawer-skeleton::after { top: 78px; }
+.drawer-skeleton::before { animation: drawer-skeleton-pulse 1.1s ease-in-out 0.15s infinite alternate; }
+.drawer-skeleton::after { animation: drawer-skeleton-pulse 1.1s ease-in-out infinite alternate; }
+@keyframes drawer-skeleton-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-skeleton::before,
+  .drawer-skeleton::after { animation: none; }
+}
 
 .drawer-items { flex: 1; overflow-y: auto; padding: 8px 14px; }
 .drawer-item {

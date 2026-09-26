@@ -14,12 +14,52 @@ let cache: Cart | null = null; // null = not loaded yet
 let inflight: Promise<Cart | null> | null = null;
 
 const listeners = new Set<() => void>();
-const emit = () => listeners.forEach((l) => l());
+
+// Drawer slide-in animation window. The drawer holds a compositor layer
+// (transform), but a mid-slide cart update still re-renders the drawer tree
+// on the main thread — style/paint of rows + thumb decodes are exactly the
+// frames the animation needs. Defer the emit until the slide finishes; the
+// cache is fresh immediately so any non-animated reader sees the new data.
+let suppressUntil = 0;
+let pendingFlush = false; // a write landed while hidden — flush at window end
+
+function emit(): void {
+  const now = performance.now();
+  if (now < suppressUntil) {
+    pendingFlush = true;
+    return;
+  }
+  listeners.forEach((l) => l());
+}
 
 function setCart(cart: Cart | null): Cart | null {
   cache = cart;
   emit();
   return cart;
+}
+
+/** Called by the drawer while its slide animation plays; emit() goes quiet
+ *  for the window so re-renders can't steal the animation's frames. Updates
+ *  landing inside the window flush to listeners when it ends — nothing is
+ *  ever lost. ms=0 just flushes synchronously (used under reduced motion). */
+export function suppressCartEmitDuring(ms: number): void {
+  if (ms <= 0) {
+    // still bump the window-relative bookkeeping, then flush immediately
+    suppressUntil = 0;
+    if (pendingFlush) {
+      pendingFlush = false;
+      listeners.forEach((l) => l());
+    }
+    return;
+  }
+  suppressUntil = performance.now() + ms;
+  window.setTimeout(() => {
+    suppressUntil = 0;
+    if (pendingFlush) {
+      pendingFlush = false;
+      listeners.forEach((l) => l());
+    }
+  }, ms + 10); // small grace past the window edge
 }
 
 /** Fetch the cart once; concurrent callers share one request. Anonymous

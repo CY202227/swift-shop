@@ -46,7 +46,7 @@ export default function ProductDetail() {
     <div className="detail">
       <div className="detail-thumb">
         {p.images && p.images.length > 0 ? (
-          <img src={p.images[0]} alt={p.name} />
+          <img src={p.images[0]} alt={p.name} decoding="async" />
         ) : (
           <span>{p.name.slice(0, 1)}</span>
         )}
