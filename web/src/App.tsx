@@ -27,6 +27,27 @@ export default function App() {
 
   // Restore session on load if a token exists
   useEffect(() => {
+    // Reverse token handoff from the admin SPA: "Visit Store" links here
+    // with #handoff=<base64>. Consume immediately, save into our own
+    // localStorage, then replace the URL so tokens never linger in the
+    // address bar or browser history.
+    const consumeHandoff = () => {
+      const m = location.hash.match(/#handoff=([^&]+)/);
+      if (!m) return false;
+      try {
+        // URL-safe base64 of JSON {"a": access, "r": refresh}
+        const json = decodeURIComponent(escape(atob(m[1])));
+        const parsed = JSON.parse(json);
+        if (parsed.a && parsed.r) {
+          saveTokens({ access: parsed.a, refresh: parsed.r });
+        }
+      } catch {
+        // malformed payload — ignore, fall through to anonymous browsing
+      }
+      navigate(location.pathname, { replace: true });
+      return true;
+    };
+    const consumed = consumeHandoff();
     const { access } = loadTokens();
     if (!access) {
       setBooting(false);

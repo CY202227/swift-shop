@@ -3,12 +3,27 @@ import { Layout, Menu, Button, Space, Typography, Tag } from "antd";
 import { LogoutOutlined, ShoppingOutlined } from "@ant-design/icons";
 import type { AdminUser } from "../types";
 import { useAdminI18n } from "../i18n";
+import { loadTokens } from "../api";
 
 const { Header, Sider, Content } = Layout;
 
 // storefront URL: separate SPA in dev (5173); override for deployments
 const STORE_URL =
   (import.meta as any).env?.VITE_STORE_URL ?? "http://127.0.0.1:5173";
+
+// Reverse token handoff: build a one-shot URL carrying the current JWT
+// pair as a URL fragment, mirroring the web->admin handoff. The storefront
+// consumes #handoff=<base64> on boot, saves into its own localStorage and
+// replaces the hash away. Page navigation cannot carry Authorization
+// headers, so the fragment is the handoff channel between SPAs.
+function storeHandoffUrl(): string {
+  const { access, refresh } = loadTokens();
+  if (!access || !refresh) return STORE_URL;
+  const payload = btoa(
+    unescape(encodeURIComponent(JSON.stringify({ a: access, r: refresh })))
+  );
+  return `${STORE_URL}/#handoff=${payload}`;
+}
 
 // role-gated menu: dashboard/orders/users/products open to both roles; rest super-only
 const ALL_MENU = [
