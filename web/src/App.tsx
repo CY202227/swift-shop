@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { AuthContext, clearTokens, loadTokens, saveTokens } from "./auth";
 import { get } from "./api";
-import { clearCartCache, loadCart } from "./cartStore";
+import { clearCartCache } from "./cartStore";
+import { openDrawer } from "./uiStore";
 import { I18nContext, detectLang, saveLang, translate, type Lang } from "./i18n";
 import type { ShopSettings, User } from "./types";
 import Navbar from "./components/Navbar";
@@ -23,7 +24,6 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [lang, setLangState] = useState<Lang>(() => detectLang());
   const [shop, setShop] = useState<ShopSettings | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
 
   // Restore session on load if a token exists
@@ -81,14 +81,11 @@ export default function App() {
     [lang]
   );
 
-  // open the cart drawer from anywhere (add-to-cart, navbar badge, ...)
-  // warming the shared cart cache here so the drawer opens with content
-  // instead of a loading flash — cheap no-op when cache is already fresh
-  const openCart = useCallback(() => {
-    void loadCart();
-    setDrawerOpen(true);
-  }, []);
-  const closeCart = useCallback(() => setDrawerOpen(false), []);
+  // open the cart drawer from anywhere (add-to-cart, navbar badge, ...).
+  // The state lives in uiStore: toggling re-renders ONLY the drawer, never
+  // the App tree — protects the slide animation's frames on busy pages
+  // (48-product grid etc.). loadCart is warmed inside openDrawer().
+  const openCart = useCallback(() => openDrawer(), []);
 
   const logout = useCallback(async () => {
     const { refresh } = loadTokens();
@@ -149,8 +146,8 @@ export default function App() {
           <footer className="footer">
             {shop?.shop_name ?? "PTCG Shop"} · FastAPI + React · {t("footer_text")}
           </footer>
-          {/* global cart drawer: slide-over from the right */}
-          <CartDrawer open={drawerOpen} onClose={closeCart} />
+          {/* global cart drawer: slide-over from the right (self-managed state) */}
+          <CartDrawer />
         </div>
       </AuthContext.Provider>
     </I18nContext.Provider>

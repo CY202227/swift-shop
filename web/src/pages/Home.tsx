@@ -25,10 +25,11 @@ export default function Home() {
       navigate("/login");
       return;
     }
+    // open the drawer FIRST — the slide animation starts instantly while
+    // the POST lands in the background and the item pops in mid-slide
+    openCart?.();
     try {
-      // response feeds the cart cache -> drawer opens with content instantly
       await addItem(productId, 1);
-      openCart?.(); // slide the drawer out instead of leaving the catalog
     } catch (e) {
       setErr(e instanceof ApiError ? e.detail : t("err_add_cart"));
     }

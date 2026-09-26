@@ -15,6 +15,13 @@
   box-sizing: border-box;
 }
 
+/* Keep the scrollbar gutter reserved at all times: locking scroll for the
+   drawer then stops triggering a full-page reflow (content jumping ~17px
+   sideways on the animation's first frame, re-rasterizing the whole grid). */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -602,14 +609,20 @@ main.container {
 .drawer-backdrop {
   position: fixed; inset: 0; background: rgba(0,0,0,0.35);
   opacity: 0; pointer-events: none; transition: opacity 0.22s; z-index: 90;
+  will-change: opacity; /* stay on the compositor: underlying content
+                          never re-rasterizes during the fade */
 }
 .drawer-backdrop.show { opacity: 1; pointer-events: auto; }
 
 .cart-drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 92vw);
-  background: var(--bg, #fff); box-shadow: -8px 0 30px rgba(0,0,0,0.18);
+  background: #ffffff; box-shadow: -8px 0 30px rgba(0,0,0,0.18);
   transform: translateX(102%); transition: transform 0.26s ease; z-index: 95;
   display: flex; flex-direction: column;
+  will-change: transform; /* own GPU layer for the whole slide: no repaint
+                             of the page below, no jank even when the main
+                             thread is busy */
+  contain: layout paint; /* drawer internals can't thrash page layout */
 }
 .cart-drawer.open { transform: translateX(0); }
 

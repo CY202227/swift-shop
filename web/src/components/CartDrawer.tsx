@@ -1,32 +1,32 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { removeItem, setItemQty, useCart } from "../cartStore";
+import { closeDrawer, useDrawerOpen } from "../uiStore";
 import { useI18n } from "../i18n";
 import { yuan } from "../format";
 import type { CartItem } from "../types";
 
 // Right-side slide-over drawer so shoppers see what they just added
-// without leaving the catalog. Reads the shared cart store — add-to-cart
-// feeds the cache from the POST response, so the drawer opens with
-// content immediately; each +/- click is ONE request (optimistic UI,
-// rollback on failure).
-export default function CartDrawer({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
+// without leaving the catalog. Open/close state lives in uiStore so
+// toggling never re-renders the App tree (that re-render was eating the
+// animation's frames). Reads the shared cart store — add-to-cart feeds
+// the cache, so the drawer opens with content immediately.
+export default function CartDrawer() {
+  const open = useDrawerOpen();
   const cart = useCart();
   const [pending, setPending] = useState<Set<number>>(new Set());
   const { t } = useI18n();
   const navigate = useNavigate();
 
-  // lock page scroll while open
+  // lock page scroll while open. scrollbar-gutter: stable (on <html>)
+  // already reserves the gutter, so overflow:hidden causes no reflow and
+  // the slide animation keeps its frames.
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = prev;
     };
   }, [open]);
 
@@ -56,23 +56,27 @@ export default function CartDrawer({
   const count = items.reduce((s, i) => s + i.qty, 0);
   const userDisc = cart?.user_discount_percent ?? 0;
 
+  const goCheckout = () => {
+    closeDrawer();
+    navigate("/cart");
+  };
+
   return (
     <>
       <div
         className={"drawer-backdrop" + (open ? " show" : "")}
-        onClick={onClose}
+        onClick={closeDrawer}
       />
       <aside className={"cart-drawer" + (open ? " open" : "")} aria-hidden={!open}>
         <div className="drawer-head">
           <span>
             {t("cart_title")} <span className="drawer-count">{count}</span>
           </span>
-          <button className="drawer-close" onClick={onClose} aria-label="close">✕</button>
+          <button className="drawer-close" onClick={closeDrawer} aria-label="close">x</button>
         </div>
 
         {cart === null ? (
-          // first load (rare: only before any fetch completed) — show a
-          // hint instead of flashing the wrong "empty cart" message
+          // cold cache (rare) — brief hint instead of a wrong "empty" flash
           <div className="drawer-empty">{t("loading")}</div>
         ) : items.length === 0 ? (
           <div className="drawer-empty">{t("cart_empty")}</div>
@@ -89,7 +93,7 @@ export default function CartDrawer({
                     )}
                   </div>
                   <div className="drawer-item-info">
-                    <Link to={`/product/${it.slug}`} onClick={onClose} className="drawer-item-name">
+                    <Link to={"/product/" + it.slug} onClick={closeDrawer} className="drawer-item-name">
                       {it.name}
                     </Link>
                     {(it.product_discount_percent ?? 0) > 0 && (
@@ -137,7 +141,7 @@ export default function CartDrawer({
                 <span>{t("drawer_total")}</span>
                 <b className="price">¥{yuan(cart?.total_cents ?? 0)}</b>
               </div>
-              <button className="btn btn-primary drawer-checkout" onClick={() => { onClose(); navigate("/cart"); }}>
+              <button className="btn btn-primary drawer-checkout" onClick={goCheckout}>
                 {t("checkout")}
               </button>
             </div>
