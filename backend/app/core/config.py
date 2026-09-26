@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     # comma-separated string, parsed via property below
     CORS_ORIGINS_STR: str = "http://localhost:5173,http://localhost:5174,http://localhost:8000"
 
+    # --- Reverse proxy / real client IP ---
+    # Number of trusted proxy hops in front of this app (nginx/traefik = 1,
+    # nginx+cloudflare = 2). Only when set do we honor X-Forwarded-For, and we
+    # take the IP len(XFF) - depth positions from the RIGHT — clients cannot
+    # spoof trusted positions (they control only the leftmost entries).
+    # 0 = direct exposure, XFF never trusted.
+    TRUST_PROXY_DEPTH: int = 0
+
     # --- Mail (dev -> mailpit at localhost:1025) ---
     SMTP_HOST: str = "localhost"
     SMTP_PORT: int = 1025

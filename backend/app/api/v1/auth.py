@@ -19,6 +19,7 @@ from sqlalchemy import select, update
 from app.core import kv
 from app.core.config import settings
 from app.core.deps import CurrentUser, DbDep
+from app.core.netutil import real_client_ip
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -102,7 +103,7 @@ async def _save_refresh_token(db, user_id: int, refresh_token: str) -> None:
 @router.post("/register", status_code=status.HTTP_202_ACCEPTED)
 async def register(body: RegisterIn, request: Request, db: DbDep) -> dict:
     """Step 1: validate + send verification code (account not created yet)."""
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = real_client_ip(request)
     await _rate_limit("register", client_ip, limit=10, window=3600)
     await _rate_limit("register", body.email.lower(), limit=5, window=3600)
 
@@ -167,7 +168,7 @@ async def verify_email(body: VerifyEmailIn, db: DbDep) -> AuthOut:
 
 @router.post("/resend-code", status_code=status.HTTP_202_ACCEPTED)
 async def resend_code(body: ResendCodeIn, request: Request, db: DbDep) -> dict:
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = real_client_ip(request)
     await _rate_limit("resend", client_ip, limit=5, window=3600)
     raw = await kv.get_kv().get(CODE_KEY.format(email=body.email.lower()))
     if not raw:
@@ -185,7 +186,7 @@ async def resend_code(body: ResendCodeIn, request: Request, db: DbDep) -> dict:
 
 @router.post("/login", response_model=AuthOut)
 async def login(body: LoginIn, request: Request, db: DbDep) -> AuthOut:
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = real_client_ip(request)
     await _rate_limit("login", client_ip, limit=20, window=900)
     await _rate_limit("login", body.email.lower(), limit=10, window=900)
 
@@ -204,7 +205,7 @@ async def login(body: LoginIn, request: Request, db: DbDep) -> AuthOut:
 @router.post("/google", response_model=AuthOut)
 async def google_auth(body: GoogleAuthIn, request: Request, db: DbDep) -> AuthOut:
     """Exchange Google authorization code for session; bind/create local account."""
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = real_client_ip(request)
     await _rate_limit("google", client_ip, limit=20, window=900)
 
     if not settings.GOOGLE_CLIENT_ID:

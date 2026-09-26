@@ -39,8 +39,9 @@ def check(name, ok, dbg=""):
 
 
 # --- login as the member user (owns orders + cart) ---
-s, r = call("POST", "/auth/login", body={"email": "r", "password": "x"})
-# real logins below
+# Runs out-of-process against the live server: everything goes through
+# the HTTP API (mock gateway reachable via /payments/mock/prepay), so no
+# app-internal imports here.
 s, sup = call("POST", "/auth/login", body={"email": "admin@shop-dev.com", "password": "Admin#12345"})
 SUP = sup["access_token"]
 s, usr = call("POST", "/auth/login", body={"email": "e2e1790254395694@test.com", "password": "Passw0rd123"})
@@ -48,8 +49,6 @@ USR = usr["access_token"]
 
 # ============ TEST 1: webhook rejects amount tampering ============
 print("== 1. Webhook amount tampering ==")
-from app.payments.mock import trades_get  # noqa: E402  (same process as server? No - separate.)
-# Use API instead: /payments/mock/prepay builds signed bodies.
 # 1) empty cart, add cheapest product, create order, initiate pay
 call("DELETE", "/cart", USR)
 call("POST", "/cart", USR, {"product_id": 2, "qty": 1})  # pikachu 12900 -10% promo = 11610
