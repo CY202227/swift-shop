@@ -68,6 +68,15 @@ async def _init_db() -> None:
 
 
 def create_app() -> FastAPI:
+    # Production guard: refuse to boot with the well-known default secret.
+    # Anyone could forge super_admin tokens with a public default value.
+    if settings.ENV == "prod" and settings.JWT_SECRET == "dev-only-secret-change-me":
+        raise RuntimeError(
+            "JWT_SECRET is still the default value — set a strong random secret "
+            "in the environment before running with ENV=prod. "
+            "e.g. python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
+
     app = FastAPI(
         title=f"{settings.APP_NAME} API",
         version="0.1.0",

@@ -46,6 +46,16 @@ async def payment_webhook(provider_name: str, request: Request, db: DbDep) -> di
     if payment.status == "succeeded":
         return {"received": True, "ignored": "already processed"}
 
+    # Amount check: gateway-reported amount must equal the payable snapshot
+    # stored at order time. A mismatch means tampered/partial payment —
+    # never mark paid, keep the raw payload for investigation.
+    if result.paid and result.amount_cents != payment.amount_cents:
+        payment.raw_payload = json.loads(raw.decode("utf-8", errors="replace") or "{}")
+        payment.status = "failed"
+        payment.provider_event_id = result.event_id
+        await db.flush()
+        return {"received": True, "ignored": "amount mismatch, order stays unpaid"}
+
     payment.raw_payload = json.loads(raw.decode("utf-8", errors="replace") or "{}")
     payment.provider_event_id = result.event_id
 

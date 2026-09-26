@@ -63,7 +63,7 @@ export default function AdminLayout({ user, onLogout }: { user: object; onLogout
           <Space>
             <Button
               icon={<ShoppingOutlined />}
-              href={STORE_URL}
+              href={storeHandoffUrl()}
               target="_blank"
               title="Storefront"
             >

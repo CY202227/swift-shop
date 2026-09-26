@@ -138,6 +138,14 @@ async def verify_email(body: VerifyEmailIn, db: DbDep) -> AuthOut:
     if not raw:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Code expired or not requested")
     code, pw_hash, username, invite_code = (raw.split("|") + ["", "", "", ""])[:4]
+
+    # Brute-force guard: 6-digit code with no attempt cap is enumerable
+    # inside its TTL. 5 wrong tries burn the code entirely.
+    attempts_key = f"vatt:{email}"
+    attempts = await kv.get_kv().incr_with_ttl(attempts_key, CODE_TTL)
+    if attempts > 5:
+        await kv.get_kv().delete(CODE_KEY.format(email=email))
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many attempts, request a new code")
     if not hmac.compare_digest(str(code), str(body.code)):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Wrong verification code")
 
