@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { get, post, ApiError } from "../api";
+import { get, ApiError } from "../api";
+import { addItem } from "../cartStore";
 import { AuthContext } from "../auth";
 import { useI18n } from "../i18n";
 import { yuan } from "../format";
@@ -27,7 +28,8 @@ export default function ProductDetail() {
       return;
     }
     try {
-      await post("/api/v1/cart", { product_id: p!.id, qty });
+      // response feeds the cart cache -> drawer opens with content instantly
+      await addItem(p!.id, qty);
       openCart?.(); // stay on the product page, show the drawer
     } catch (e) {
       setMsg(e instanceof ApiError ? e.detail : t("err_add_cart"));

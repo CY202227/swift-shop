@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { AuthContext, clearTokens, loadTokens, saveTokens } from "./auth";
 import { get } from "./api";
+import { clearCartCache, loadCart } from "./cartStore";
 import { I18nContext, detectLang, saveLang, translate, type Lang } from "./i18n";
 import type { ShopSettings, User } from "./types";
 import Navbar from "./components/Navbar";
@@ -81,7 +82,12 @@ export default function App() {
   );
 
   // open the cart drawer from anywhere (add-to-cart, navbar badge, ...)
-  const openCart = useCallback(() => setDrawerOpen(true), []);
+  // warming the shared cart cache here so the drawer opens with content
+  // instead of a loading flash — cheap no-op when cache is already fresh
+  const openCart = useCallback(() => {
+    void loadCart();
+    setDrawerOpen(true);
+  }, []);
   const closeCart = useCallback(() => setDrawerOpen(false), []);
 
   const logout = useCallback(async () => {
@@ -96,6 +102,7 @@ export default function App() {
     } catch {
       // network failure shouldn't block local logout
     }
+    clearCartCache(); // don't leak one user's cart into the next session
     clearTokens();
     setUser(null);
     navigate("/");

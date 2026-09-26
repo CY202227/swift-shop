@@ -1,35 +1,26 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { del, get, patch, ApiError } from "../api";
+import { removeItem, setItemQty, useCart } from "../cartStore";
 import { useI18n } from "../i18n";
 import { yuan } from "../format";
-import type { Cart, CartItem } from "../types";
+import type { CartItem } from "../types";
 
 // Right-side slide-over drawer so shoppers see what they just added
-// without leaving the catalog. Shares the /cart data source; edits here
-// are the same PATCH/DELETE calls the full cart page uses.
+// without leaving the catalog. Reads the shared cart store — add-to-cart
+// feeds the cache from the POST response, so the drawer opens with
+// content immediately; each +/- click is ONE request (optimistic UI,
+// rollback on failure).
 export default function CartDrawer({
   open,
   onClose,
-  onCartChanged,
 }: {
   open: boolean;
   onClose: () => void;
-  onCartChanged?: () => void;
 }) {
-  const [cart, setCart] = useState<Cart | null>(null);
-  const [busy, setBusy] = useState(false);
+  const cart = useCart();
+  const [pending, setPending] = useState<Set<number>>(new Set());
   const { t } = useI18n();
   const navigate = useNavigate();
-  const prevQty = useRef<Record<number, number>>({});
-
-  // load cart content each time the drawer opens
-  useEffect(() => {
-    if (!open) return;
-    get("/api/v1/cart")
-      .then((d) => setCart(d as Cart))
-      .catch(() => setCart(null));
-  }, [open]);
 
   // lock page scroll while open
   useEffect(() => {
@@ -39,26 +30,27 @@ export default function CartDrawer({
     };
   }, [open]);
 
-  const mutateCart = async (fn: () => Promise<unknown>) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await fn();
-      const d = await get("/api/v1/cart");
-      setCart(d as Cart);
-      onCartChanged?.();
-    } catch (e) {
-      // silent in drawer; full cart page shows errors
-    } finally {
-      setBusy(false);
-    }
+  const mark = (id: number, on: boolean) => {
+    setPending((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   };
 
-  const changeQty = (it: CartItem, qty: number) =>
-    mutateCart(() => patch(`/api/v1/cart/${it.id}`, { qty }));
-
-  const removeItem = (it: CartItem) =>
-    mutateCart(() => del(`/api/v1/cart/${it.id}`));
+  // same-item double clicks are gated; different items run in parallel
+  const run = async (id: number, fn: () => Promise<unknown>) => {
+    if (pending.has(id)) return;
+    mark(id, true);
+    try {
+      await fn();
+    } catch {
+      // store already rolled the optimistic change back
+    } finally {
+      mark(id, false);
+    }
+  };
 
   const items = cart?.items ?? [];
   const count = items.reduce((s, i) => s + i.qty, 0);
@@ -78,7 +70,11 @@ export default function CartDrawer({
           <button className="drawer-close" onClick={onClose} aria-label="close">✕</button>
         </div>
 
-        {items.length === 0 ? (
+        {cart === null ? (
+          // first load (rare: only before any fetch completed) — show a
+          // hint instead of flashing the wrong "empty cart" message
+          <div className="drawer-empty">{t("loading")}</div>
+        ) : items.length === 0 ? (
           <div className="drawer-empty">{t("cart_empty")}</div>
         ) : (
           <>
@@ -109,16 +105,19 @@ export default function CartDrawer({
                   <div className="drawer-item-ops">
                     <div className="drawer-qty">
                       <button
-                        disabled={busy || it.qty <= 1}
-                        onClick={() => changeQty(it, it.qty - 1)}
+                        disabled={it.qty <= 1}
+                        onClick={() => run(it.id, () => setItemQty(it, it.qty - 1))}
                       >−</button>
                       <span>{it.qty}</span>
                       <button
-                        disabled={busy || it.qty >= Math.min(it.stock, 99)}
-                        onClick={() => changeQty(it, it.qty + 1)}
+                        disabled={it.qty >= Math.min(it.stock, 99)}
+                        onClick={() => run(it.id, () => setItemQty(it, it.qty + 1))}
                       >+</button>
                     </div>
-                    <button className="drawer-remove" onClick={() => removeItem(it)} disabled={busy}>
+                    <button
+                      className="drawer-remove"
+                      onClick={() => run(it.id, () => removeItem(it))}
+                    >
                       {t("remove")}
                     </button>
                   </div>

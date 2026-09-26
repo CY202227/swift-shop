@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { del, get, patch, post, ApiError } from "../api";
+import { post, ApiError } from "../api";
+import { clearCartCache, loadCart, removeItem, setItemQty, useCart } from "../cartStore";
 import { useI18n } from "../i18n";
 import { yuan } from "../format";
-import type { Cart } from "../types";
 
 export default function CartPage() {
-  const [cart, setCart] = useState<Cart | null>(null);
+  const cart = useCart(); // shared store: warm from the drawer's adds
   const [msg, setMsg] = useState("");
   // shipping form state (checkout step 2)
   const [shipOpen, setShipOpen] = useState(false);
@@ -17,25 +17,20 @@ export default function CartPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
 
-  const reload = () => {
-    get("/api/v1/cart")
-      .then((d) => setCart(d as Cart))
-      .catch((e) => setMsg(e instanceof ApiError ? e.detail : t("load_failed")));
-  };
-
-  useEffect(reload, []);
-
   const changeQty = async (itemId: number, qty: number) => {
     try {
-      setCart(await patch(`/api/v1/cart/${itemId}`, { qty }) as Cart);
+      await setItemQty(
+        cart!.items.find((i) => i.id === itemId)!, // store handles optimistics
+        qty,
+      );
     } catch (e) {
       setMsg(e instanceof ApiError ? e.detail : t("err_update_cart"));
     }
   };
 
-  const removeItem = async (itemId: number) => {
+  const removeOne = async (itemId: number) => {
     try {
-      setCart(await del(`/api/v1/cart/${itemId}`) as Cart);
+      await removeItem(cart!.items.find((i) => i.id === itemId)!);
     } catch (e) {
       setMsg(e instanceof ApiError ? e.detail : t("err_remove_cart"));
     }
@@ -65,6 +60,8 @@ export default function CartPage() {
         recipient_phone: phone.trim(),
         address: address.trim(),
       });
+      clearCartCache(); // order consumed the cart
+      loadCart(); // silent background re-sync for the next drawer open
       navigate("/orders", { state: { newOrder: order } });
     } catch (e) {
       setMsg(e instanceof ApiError ? e.detail : t("err_checkout"));
@@ -135,7 +132,7 @@ export default function CartPage() {
                   </td>
                   <td>¥{yuan(it.subtotal_cents)}</td>
                   <td>
-                    <button className="btn-link danger" onClick={() => removeItem(it.id)}>
+                    <button className="btn-link danger" onClick={() => removeOne(it.id)}>
                       {t("remove")}
                     </button>
                   </td>
