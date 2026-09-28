@@ -236,6 +236,8 @@ const zh: Record<string, string> = {
   col_revenue: "收入",
   // guard
   guard_no_permission: "抱歉，您没有权限访问管理后台。",
+  guard_super_only: "该页面仅超级管理员可访问。",
+  guard_back_dashboard: "返回仪表盘",
 };
 
 const en: Record<string, string> = {
@@ -447,6 +449,8 @@ const en: Record<string, string> = {
   col_revenue: "Revenue",
   // guard
   guard_no_permission: "Sorry, you don't have permission to access the backoffice.",
+  guard_super_only: "This page is reserved for super admins.",
+  guard_back_dashboard: "Back to dashboard",
 };
 
 const DICTS: Record<AdminLang, Record<string, string>> = { zh, en };

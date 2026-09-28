@@ -7,6 +7,7 @@ import { AuthCtx } from "./auth";
 import type { AdminUser } from "./types";
 import AdminGuard from "./components/AdminGuard";
 import AdminLayout from "./components/AdminLayout";
+import RoleRoute from "./components/RoleRoute";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ProductsPage from "./pages/ProductsPage";
@@ -117,11 +118,34 @@ export default function App() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="products" element={<ProductsPage />} />
-        <Route path="promotions" element={<PromotionsPage />} />
-        <Route path="invites" element={<InvitesPage />} />
+        {/* super-only pages are blocked at the route level so the page
+            components (and their API calls) never mount for regular admins */}
+        <Route
+          path="promotions"
+          element={
+            <RoleRoute superOnly>
+              <PromotionsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="invites"
+          element={
+            <RoleRoute superOnly>
+              <InvitesPage />
+            </RoleRoute>
+          }
+        />
         <Route path="users" element={<UsersPage />} />
         <Route path="orders" element={<OrdersPage />} />
-        <Route path="revenue" element={<RevenuePage />} />
+        <Route
+          path="revenue"
+          element={
+            <RoleRoute superOnly>
+              <RevenuePage />
+            </RoleRoute>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

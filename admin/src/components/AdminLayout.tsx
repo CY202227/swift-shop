@@ -1,4 +1,4 @@
-import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Layout, Menu, Button, Space, Typography, Tag } from "antd";
 import { LogoutOutlined, ShoppingOutlined } from "@ant-design/icons";
 import type { AdminUser } from "../types";
@@ -44,11 +44,9 @@ export default function AdminLayout({ user, onLogout }: { user: object; onLogout
   const { lang, setLang, t } = useAdminI18n();
   const menu = ALL_MENU.filter((m) => m.roles.includes(u.role));
   const selected = location.pathname.split("/")[1] || "dashboard";
-
-  // A regular admin landing on a super-only page gets kicked to the dashboard
-  if (!isSuper && ["promotions", "invites", "revenue"].includes(selected)) {
-    navigate("/dashboard", { replace: true });
-  }
+  // NOTE: direct URL access to super-only pages (promotions/invites/revenue)
+  // is now blocked by RoleRoute in App.tsx before the page ever mounts —
+  // no render-phase redirect needed here.
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
